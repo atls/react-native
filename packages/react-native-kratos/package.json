@@ -12,7 +12,7 @@
     "postpack": "rm -rf dist"
   },
   "dependencies": {
-    "@atls/react-kratos": "^0.0.1"
+    "@atls/react-kratos": "0.0.2"
   },
   "devDependencies": {
     "@react-native-async-storage/async-storage": "^1.21.0",
@@ -35,5 +35,6 @@
     "access": "public",
     "main": "dist/index.js",
     "typings": "dist/index.d.ts"
-  }
+  },
+  "typecheckSkipLibCheck": true
 }
