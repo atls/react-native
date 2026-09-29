@@ -1,104 +1,68 @@
-/* eslint-disable react/jsx-no-constructed-context-values */
+import type { Session }             from '@ory/kratos-client-fetch'
+import type { ReactElement }        from 'react'
+import type { ReactNode }           from 'react'
 
-import type { Session }      from '@atls/react-kratos'
-import type { ReactElement } from 'react'
-import type { ReactNode }    from 'react'
+import type { NativeSession }       from './auth-session.store.js'
+import type { SessionTokenStorage } from './session-token.storage.js'
 
-import { useSdk }            from '@atls/react-kratos'
-import AsyncStore            from '@react-native-async-storage/async-storage'
-import * as SecureStore      from 'expo-secure-store'
-import { Platform }          from 'react-native'
-import { createContext }     from 'react'
-import { useCallback }       from 'react'
-import { useEffect }         from 'react'
-import { useState }          from 'react'
-import React                 from 'react'
+import { useSdk }                   from '@atls/react-kratos'
+import { createContext }            from 'react'
+import { useEffect }                from 'react'
+import { useMemo }                  from 'react'
+import { useSyncExternalStore }     from 'react'
+import React                        from 'react'
 
-const USER_SESSION_NAME = 'user_session'
-
-export type SessionContext =
-  | {
-      sessionToken?: string
-      session: Session
-    }
-  | undefined
+import { createAuthSessionStore }   from './auth-session.store.js'
 
 export interface ContextAuth {
+  error?: unknown
+  isAuthenticated: boolean
+  logout: () => Promise<void>
+  refreshSession: () => Promise<Session | undefined>
   session?: Session
   sessionToken?: string
-  isAuthenticated: boolean
   setSession: (session: SessionContext) => Promise<void>
+  retrySessionRestore: () => Promise<void>
 }
 
-export const AuthContext = createContext<ContextAuth>({
-  isAuthenticated: false,
-  setSession: async () => Promise.resolve(),
-})
+export type SessionContext = NativeSession | undefined
 
-interface AuthProviderProps {
+export const AuthContext = createContext<ContextAuth | undefined>(undefined)
+
+export interface AuthProviderProps {
   children: ReactNode
+  storage: SessionTokenStorage
 }
 
-export const AuthProvider = ({ children }: AuthProviderProps): ReactElement | null => {
-  const [sessionContext, setSessionContext] = useState<SessionContext | undefined>(undefined)
-  const [initialized, setInitialized] = useState<boolean>(false)
+export const AuthProvider = ({ children, storage }: AuthProviderProps): ReactElement | null => {
   const sdk = useSdk()
-
-  const setSession = useCallback(
-    async (session: SessionContext) => {
-      if (Platform.OS !== 'web') {
-        await SecureStore.setItemAsync(USER_SESSION_NAME, JSON.stringify(session))
-      } else {
-        await AsyncStore.setItem(USER_SESSION_NAME, JSON.stringify(session))
-      }
-
-      setSessionContext(session)
-    },
-    [setSessionContext]
-  )
+  const store = useMemo(() => createAuthSessionStore({ sdk, storage }), [sdk, storage])
+  const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 
   useEffect(() => {
-    const getAuthenticatedSession = async (): Promise<void> => {
-      const userSession =
-        Platform.OS !== 'web'
-          ? await SecureStore.getItemAsync(USER_SESSION_NAME)
-          : await AsyncStore.getItem(USER_SESSION_NAME)
+    store.initialize().catch(() => undefined)
+  }, [store])
 
-      const auth: SessionContext = userSession ? JSON.parse(userSession) : undefined
+  const value = useMemo<ContextAuth>(
+    () => ({
+      error: snapshot.error,
+      isAuthenticated: Boolean(snapshot.session),
+      logout: store.logout,
+      refreshSession: store.refreshSession,
+      retrySessionRestore: store.initialize,
+      session: snapshot.session,
+      sessionToken: snapshot.sessionToken,
+      setSession: async (session): Promise<void> =>
+        session
+          ? store.acceptSession(session, snapshot.generation)
+          : store.logout(snapshot.generation),
+    }),
+    [snapshot, store]
+  )
 
-      if (auth?.sessionToken) {
-        try {
-          const { data: session } = await sdk.toSession({ xSessionToken: auth.sessionToken })
-
-          setSessionContext({ session, sessionToken: auth.sessionToken })
-        } catch (error) {
-          // eslint-disable-next-line no-console
-          console.log(error)
-
-          setSessionContext(undefined)
-        }
-      }
-
-      setInitialized(true)
-    }
-
-    getAuthenticatedSession()
-  }, [sdk])
-
-  if (!initialized) {
+  if (!snapshot.initialized) {
     return null
   }
 
-  return (
-    <AuthContext.Provider
-      value={{
-        session: sessionContext?.session,
-        sessionToken: sessionContext?.sessionToken,
-        isAuthenticated: Boolean(sessionContext?.sessionToken),
-        setSession,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
