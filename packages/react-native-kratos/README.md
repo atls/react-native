@@ -8,19 +8,14 @@ React Native / Expo-адаптер native self-service flows для self-hosted 
 `SdkProvider`:
 
 ```tsx
-import {
-  AuthProvider,
-  ReactNativeLoginFlow,
-  SdkProvider,
-} from '@atls/react-native-kratos'
-import {
-  Configuration,
-  FrontendApi,
-} from '@ory/kratos-client-fetch'
+import { Configuration }        from '@ory/kratos-client-fetch'
+import { FrontendApi }          from '@ory/kratos-client-fetch'
 
-const frontend = new FrontendApi(
-  new Configuration({ basePath: kratosPublicUrl })
-)
+import { AuthProvider }         from '@atls/react-native-kratos'
+import { ReactNativeLoginFlow } from '@atls/react-native-kratos'
+import { SdkProvider }          from '@atls/react-native-kratos'
+
+const frontend = new FrontendApi(new Configuration({ basePath: kratosPublicUrl }))
 
 export const App = () => (
   <SdkProvider value={frontend}>
