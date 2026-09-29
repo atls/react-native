@@ -1,10 +1,10 @@
 # @atls/react-native-kratos
 
-React Native / Expo-адаптер native self-service flows для self-hosted Ory Kratos.
+React Native / Expo adapter for native self-service flows with self-hosted Ory Kratos.
 
-## Использование
+## Usage
 
-Создайте `FrontendApi` из `@ory/kratos-client-fetch` и передайте его через
+Create a `FrontendApi` from `@ory/kratos-client-fetch` and provide it through
 `SdkProvider`:
 
 ```tsx
@@ -28,19 +28,28 @@ export const App = () => (
 )
 ```
 
-`AuthProvider` сохраняет только `session_token`: в Expo SecureStore на native и
-в AsyncStorage на web. При запуске сессия восстанавливается через `toSession`.
-Ответ `401` удаляет подтверждённо неактивный token; network, `403` и `5xx`
-оставляют token и ошибку в `useAuth()` для повторного `refreshSession`. Ошибка
-чтения storage также становится видна потребителю после первого loading state;
-`retrySessionRestore` повторяет чтение и восстановление, не очищая token.
+`AuthProvider` stores only the `session_token`: in Expo SecureStore on native
+and in AsyncStorage on web. On startup, it restores the session through
+`toSession`. A `401` response clears a token whose session is confirmed to be
+inactive. Network failures, `403` responses, and `5xx` responses retain the
+token and expose the error through `useAuth()` so the consumer can call
+`refreshSession` again. A storage read failure is likewise exposed after the
+initial loading state; `retrySessionRestore` repeats the read and restore
+without clearing the token.
 
-`logout` сразу закрывает текущее поколение локального auth state, удаляет token
-и вызывает `performNativeLogout` с token, захваченным до очистки. Поздние
-результаты login, restore, refresh и browser exchange не могут снова применить
-сессию старого поколения.
+`logout` immediately closes the current generation of local auth state,
+removes the token, and calls `performNativeLogout` with the token captured
+before cleanup. Late login, restore, refresh, and browser-exchange results
+cannot reapply a session from an older generation.
 
-Login и registration передают redirect из общего Ory `handleFlowError` в Expo
-WebBrowser. После возврата адаптер обменивает пару
-`session_token_exchange_code` / `code` через `exchangeSessionToken`; локальный
-Ory error switch пакет не воспроизводит.
+Login and registration pass redirects from the shared Ory `handleFlowError`
+through Expo WebBrowser. After the browser returns, the adapter exchanges the
+`session_token_exchange_code` / `code` pair through `exchangeSessionToken`; the
+package does not reproduce Ory's error switch locally.
+
+## Acceptance boundary
+
+Automated build, unit, type, lint, and Expo 50 Metro bundle checks do not replace
+consumer acceptance on Expo 56 / React Native 0.85 / React 19 or login,
+registration, restart restore, logout, and account-switching checks against a
+real Kratos deployment on a device or simulator.
