@@ -616,6 +616,7 @@ test('keeps acceptance retryable after a storage write failure', async () => {
   const storageError = new Error('secure storage unavailable')
   let shouldFail = true
   let token: string | undefined
+  const revokedTokens: Array<string> = []
   const storage: SessionTokenStorage = {
     delete: async (): Promise<void> => {
       token = undefined
@@ -631,7 +632,16 @@ test('keeps acceptance retryable after a storage write failure', async () => {
       token = nextToken
     },
   }
-  const store = createAuthSessionStore({ sdk: {} as AuthSessionSdk, storage })
+  const sdk = {
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }): Promise<void> => {
+      revokedTokens.push(performNativeLogoutBody.session_token)
+    },
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage })
 
   await store.initialize()
   await assert.rejects(
@@ -644,6 +654,7 @@ test('keeps acceptance retryable after a storage write failure', async () => {
     initialized: true,
   })
   assert.equal(token, undefined)
+  assert.deepEqual(revokedTokens, ['failed-token'])
 
   await store.acceptSession(
     { session: session('recovered-account'), sessionToken: 'token' },
@@ -657,6 +668,41 @@ test('keeps acceptance retryable after a storage write failure', async () => {
     sessionToken: 'token',
   })
   assert.equal(token, 'token')
+  assert.deepEqual(revokedTokens, ['failed-token'])
+})
+
+test('reports persistence and issued-token revocation failures together', async () => {
+  const storageError = new Error('secure storage unavailable')
+  const revocationError = new Error('identity service unavailable')
+  const storage: SessionTokenStorage = {
+    delete: async (): Promise<void> => undefined,
+    read: async (): Promise<undefined> => undefined,
+    write: async (): Promise<void> => {
+      throw storageError
+    },
+  }
+  const sdk = {
+    performNativeLogout: async (): Promise<void> => {
+      throw revocationError
+    },
+    toSession: async (): Promise<Session> => session('unused'),
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage })
+
+  await store.initialize()
+  await assert.rejects(
+    store.acceptSession({ session: session('failed-account'), sessionToken: 'failed-token' }, 0),
+    (error) =>
+      error instanceof AggregateError &&
+      error.message === 'Session persistence and revocation failed' &&
+      error.errors[0] === storageError &&
+      error.errors[1] === revocationError
+  )
+
+  assert.deepEqual(store.getSnapshot(), {
+    generation: 1,
+    initialized: true,
+  })
 })
 
 test('a late login result cannot recreate a logged-out session or token', async () => {

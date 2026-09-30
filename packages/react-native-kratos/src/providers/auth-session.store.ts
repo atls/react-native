@@ -165,24 +165,37 @@ export const createAuthSessionStore = ({
         generation: reservedGeneration,
       })
 
-      await enqueueStorageMutation(async () => {
-        if (snapshot.generation !== reservedGeneration) {
-          return
-        }
+      try {
+        await enqueueStorageMutation(async () => {
+          if (snapshot.generation !== reservedGeneration) {
+            return
+          }
 
-        await storage.write(sessionToken)
+          await storage.write(sessionToken)
 
-        if (snapshot.generation !== reservedGeneration) {
-          return
-        }
+          if (snapshot.generation !== reservedGeneration) {
+            return
+          }
 
-        emit({
-          generation: reservedGeneration,
-          initialized: true,
-          session,
-          sessionToken,
+          emit({
+            generation: reservedGeneration,
+            initialized: true,
+            session,
+            sessionToken,
+          })
         })
-      })
+      } catch (persistenceError) {
+        try {
+          await revokeStaleSessionToken(sessionToken)
+        } catch (revocationError) {
+          throw new AggregateError(
+            [persistenceError, revocationError],
+            'Session persistence and revocation failed'
+          )
+        }
+
+        throw persistenceError
+      }
 
       if (snapshot.generation !== reservedGeneration) {
         await revokeStaleSessionToken(sessionToken)
