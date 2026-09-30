@@ -129,19 +129,26 @@ export const createAuthSessionStore = ({
         return
       }
 
+      const reservedGeneration = expectedGeneration + 1
+
+      emit({
+        ...snapshot,
+        generation: reservedGeneration,
+      })
+
       await enqueueStorageMutation(async () => {
-        if (snapshot.generation !== expectedGeneration) {
+        if (snapshot.generation !== reservedGeneration) {
           return
         }
 
         await storage.write(sessionToken)
 
-        if (snapshot.generation !== expectedGeneration) {
+        if (snapshot.generation !== reservedGeneration) {
           return
         }
 
         emit({
-          generation: expectedGeneration + 1,
+          generation: reservedGeneration,
           initialized: true,
           session,
           sessionToken,

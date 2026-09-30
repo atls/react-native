@@ -199,6 +199,69 @@ test('a retryable refresh failure cannot replace a newer account', async () => {
   })
 })
 
+test('an inactive refresh cannot invalidate an accepted account waiting on storage', async () => {
+  const refresh = deferred<Session>()
+  const write = deferred<undefined>()
+  const writeStarted = deferred<undefined>()
+  let token: string | undefined = 'token-a'
+  const calls: Array<string> = []
+  const storage: SessionTokenStorage = {
+    delete: async (): Promise<void> => {
+      calls.push('delete')
+      token = undefined
+    },
+    read: async (): Promise<StoredSessionToken> => storedSessionToken('token-a'),
+    write: async (nextToken): Promise<void> => {
+      calls.push(`write:${nextToken}`)
+      writeStarted.resolve(undefined)
+      await write.promise
+      token = nextToken
+    },
+  }
+  let sessionCalls = 0
+  const sdk = {
+    toSession: async (): Promise<Session> => {
+      sessionCalls += 1
+
+      return sessionCalls === 1 ? session('account-a') : refresh.promise
+    },
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage })
+
+  await store.initialize()
+  const pendingRefresh = store.refreshSession()
+  const pendingAcceptance = store.acceptSession(
+    { session: session('account-b'), sessionToken: 'token-b' },
+    store.getSnapshot().generation
+  )
+
+  await writeStarted.promise
+
+  refresh.reject(new ResponseError(new Response(undefined, { status: 401 })))
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve)
+  })
+  const snapshotDuringWrite = store.getSnapshot()
+
+  write.resolve(undefined)
+  await Promise.all([pendingRefresh, pendingAcceptance])
+
+  assert.deepEqual(snapshotDuringWrite, {
+    generation: 1,
+    initialized: true,
+    session: session('account-a'),
+    sessionToken: 'token-a',
+  })
+  assert.deepEqual(store.getSnapshot(), {
+    generation: 1,
+    initialized: true,
+    session: session('account-b'),
+    sessionToken: 'token-b',
+  })
+  assert.equal(token, 'token-b')
+  assert.deepEqual(calls, ['write:token-b'])
+})
+
 test('logout clears local state and revokes the captured token', async () => {
   const persisted = createStorage('captured-token')
   const remoteTokens: Array<string> = []
@@ -470,15 +533,18 @@ test('keeps acceptance retryable after a storage write failure', async () => {
   )
 
   assert.deepEqual(store.getSnapshot(), {
-    generation: 0,
+    generation: 1,
     initialized: true,
   })
   assert.equal(token, undefined)
 
-  await store.acceptSession({ session: session('recovered-account'), sessionToken: 'token' }, 0)
+  await store.acceptSession(
+    { session: session('recovered-account'), sessionToken: 'token' },
+    store.getSnapshot().generation
+  )
 
   assert.deepEqual(store.getSnapshot(), {
-    generation: 1,
+    generation: 2,
     initialized: true,
     session: session('recovered-account'),
     sessionToken: 'token',
@@ -516,7 +582,7 @@ test('a late login result cannot recreate a logged-out session or token', async 
   const logout = store.logout()
 
   assert.deepEqual(store.getSnapshot(), {
-    generation: 1,
+    generation: 2,
     initialized: true,
   })
   const nextLogin = store.acceptSession(
@@ -528,7 +594,7 @@ test('a late login result cannot recreate a logged-out session or token', async 
   await Promise.all([accept, logout, nextLogin])
 
   assert.deepEqual(store.getSnapshot(), {
-    generation: 2,
+    generation: 3,
     initialized: true,
     session: session('next-login'),
     sessionToken: 'next-token',
