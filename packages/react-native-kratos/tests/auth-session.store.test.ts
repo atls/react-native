@@ -296,6 +296,58 @@ test('an inactive refresh cannot invalidate an accepted account waiting on stora
   assert.deepEqual(calls, ['write:token-b'])
 })
 
+test('a refresh started during pending acceptance cannot replace the accepted account', async () => {
+  const refresh = deferred<Session>()
+  const write = deferred<undefined>()
+  const writeStarted = deferred<undefined>()
+  let token: string | undefined = 'token-a'
+  const storage: SessionTokenStorage = {
+    delete: async (): Promise<void> => {
+      token = undefined
+    },
+    read: async (): Promise<StoredSessionToken> => storedSessionToken('token-a'),
+    write: async (nextToken): Promise<void> => {
+      writeStarted.resolve(undefined)
+      await write.promise
+      token = nextToken
+    },
+  }
+  let sessionCalls = 0
+  const sdk = {
+    performNativeLogout: async (): Promise<void> => undefined,
+    toSession: async (): Promise<Session> => {
+      sessionCalls += 1
+
+      return sessionCalls === 1 ? session('account-a') : refresh.promise
+    },
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage })
+
+  await store.initialize()
+  const pendingAcceptance = store.acceptSession(
+    { session: session('account-b'), sessionToken: 'token-b' },
+    store.getSnapshot().generation
+  )
+
+  await writeStarted.promise
+
+  const pendingRefresh = store.refreshSession()
+
+  write.resolve(undefined)
+  await pendingAcceptance
+  refresh.resolve(session('refreshed-account-a'))
+  await pendingRefresh
+
+  assert.deepEqual(store.getSnapshot(), {
+    generation: 1,
+    initialized: true,
+    session: session('account-b'),
+    sessionToken: 'token-b',
+  })
+  assert.equal(token, 'token-b')
+  assert.equal(sessionCalls, 1)
+})
+
 test('logout clears local state and revokes the captured token', async () => {
   const persisted = createStorage('captured-token')
   const remoteTokens: Array<string> = []

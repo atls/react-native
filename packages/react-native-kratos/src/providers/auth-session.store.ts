@@ -47,6 +47,7 @@ export const createAuthSessionStore = ({
     generation: 0,
     initialized: false,
   }
+  let pendingAcceptanceGeneration: number | undefined
   let storageQueue = Promise.resolve()
 
   const emit = (nextSnapshot: AuthSessionSnapshot): void => {
@@ -160,45 +161,53 @@ export const createAuthSessionStore = ({
 
       const reservedGeneration = expectedGeneration + 1
 
+      pendingAcceptanceGeneration = reservedGeneration
+
       emit({
         ...snapshot,
         generation: reservedGeneration,
       })
 
       try {
-        await enqueueStorageMutation(async () => {
-          if (snapshot.generation !== reservedGeneration) {
-            return
-          }
-
-          await storage.write(sessionToken)
-
-          if (snapshot.generation !== reservedGeneration) {
-            return
-          }
-
-          emit({
-            generation: reservedGeneration,
-            initialized: true,
-            session,
-            sessionToken,
-          })
-        })
-      } catch (persistenceError) {
         try {
-          await revokeStaleSessionToken(sessionToken)
-        } catch (revocationError) {
-          throw new AggregateError(
-            [persistenceError, revocationError],
-            'Session persistence and revocation failed'
-          )
+          await enqueueStorageMutation(async () => {
+            if (snapshot.generation !== reservedGeneration) {
+              return
+            }
+
+            await storage.write(sessionToken)
+
+            if (snapshot.generation !== reservedGeneration) {
+              return
+            }
+
+            emit({
+              generation: reservedGeneration,
+              initialized: true,
+              session,
+              sessionToken,
+            })
+          })
+        } catch (persistenceError) {
+          try {
+            await revokeStaleSessionToken(sessionToken)
+          } catch (revocationError) {
+            throw new AggregateError(
+              [persistenceError, revocationError],
+              'Session persistence and revocation failed'
+            )
+          }
+
+          throw persistenceError
         }
 
-        throw persistenceError
-      }
-
-      if (snapshot.generation !== reservedGeneration) {
-        await revokeStaleSessionToken(sessionToken)
+        if (snapshot.generation !== reservedGeneration) {
+          await revokeStaleSessionToken(sessionToken)
+        }
+      } finally {
+        if (pendingAcceptanceGeneration === reservedGeneration) {
+          pendingAcceptanceGeneration = undefined
+        }
       }
     },
     getSnapshot: (): AuthSessionSnapshot => snapshot,
@@ -299,7 +308,7 @@ export const createAuthSessionStore = ({
     refreshSession: async (): Promise<Session | undefined> => {
       const { generation, sessionToken } = snapshot
 
-      if (!sessionToken) {
+      if (!sessionToken || pendingAcceptanceGeneration === generation) {
         return undefined
       }
 
