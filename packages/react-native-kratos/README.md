@@ -43,10 +43,13 @@ the error through `useAuth()`, and can be retried with `syncSession()`.
 `setSession(undefined)` only clears local auth state and storage. `logout()`
 immediately closes the current generation of local auth state, removes the
 token, and calls `performNativeLogout` with the token captured before cleanup.
-It attempts both operations and reports either or both failures. Replacing an
-account does not revoke another session automatically. Late login,
-registration, restore, synchronization, and browser-exchange results cannot
-reapply a session from an older generation.
+It attempts both operations and reports either or both failures. If remote
+revocation fails after local cleanup, another `logout()` call on the same
+mounted provider retries that captured token. Replacing an account does not
+revoke another session automatically. `syncSession()` waits for an in-progress
+session acceptance and revalidates the credential that was actually persisted
+before it resolves. Late login, registration, restore, synchronization, and
+browser-exchange results cannot reapply a session from an older generation.
 
 Login and registration pass redirects from the shared Ory `handleFlowError`
 through Expo WebBrowser. Both wrappers accept an optional `returnTo`; otherwise
