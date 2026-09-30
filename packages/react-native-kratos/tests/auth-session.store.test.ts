@@ -73,16 +73,26 @@ const createStorage = (initialSession?: StoredSessionToken): TestStorage => {
 test('restores and migrates a released native session after Kratos validation', async () => {
   const persisted = createStorage(storedSession('legacy-token', true))
   const restored = session('restored')
+  const validationStarted = deferred<undefined>()
+  const validation = deferred<Session>()
   const sdk = {
     toSession: async ({ xSessionToken }: { xSessionToken?: string }): Promise<Session> => {
       assert.equal(xSessionToken, 'legacy-token')
+      validationStarted.resolve(undefined)
 
-      return restored
+      return validation.promise
     },
   } as AuthSessionSdk
   const store = createAuthSessionStore({ sdk, storage: persisted.storage })
 
-  await store.initialize()
+  const initialization = store.initialize()
+
+  await validationStarted.promise
+  assert.equal(store.getSnapshot().session, undefined)
+  assert.deepEqual(persisted.getStoredSession(), storedSession('legacy-token', true))
+  assert.deepEqual(persisted.calls, ['read'])
+  validation.resolve(restored)
+  await initialization
 
   assert.deepEqual(store.getSnapshot(), {
     generation: 0,
@@ -410,7 +420,22 @@ test('local clear deletes the credential without remote logout', async () => {
 
 test('explicit logout removes and revokes the captured credential', async () => {
   const persisted = createStorage(storedSession('active-token'))
+  const validation = deferred<Session>()
+  const validationStarted = deferred<undefined>()
+  const readError = new Error('secure storage unavailable')
+  let firstRead = true
   const revokedTokens: Array<string> = []
+  const storage: SessionTokenStorage = {
+    ...persisted.storage,
+    read: async (): Promise<StoredSessionToken | undefined> => {
+      if (firstRead) {
+        firstRead = false
+        throw readError
+      }
+
+      return persisted.storage.read()
+    },
+  }
   const sdk = {
     performNativeLogout: async ({
       performNativeLogoutBody,
@@ -419,17 +444,25 @@ test('explicit logout removes and revokes the captured credential', async () => 
     }): Promise<void> => {
       revokedTokens.push(performNativeLogoutBody.session_token)
     },
-    toSession: async (): Promise<Session> => session('active'),
+    toSession: async (): Promise<Session> => {
+      validationStarted.resolve(undefined)
+
+      return validation.promise
+    },
   } as AuthSessionSdk
-  const store = createAuthSessionStore({ sdk, storage: persisted.storage })
+  const store = createAuthSessionStore({ sdk, storage })
 
   await store.initialize()
-  await store.logout()
+  assert.equal(store.getSnapshot().error, readError)
+  const synchronization = store.syncSession()
 
-  assert.deepEqual(store.getSnapshot(), {
-    generation: 1,
-    initialized: true,
-  })
+  await validationStarted.promise
+  await store.logout()
+  validation.resolve(session('late-restoration'))
+  await synchronization
+
+  assert.equal(store.getSnapshot().session, undefined)
+  assert.equal(store.getSnapshot().sessionToken, undefined)
   assert.equal(persisted.getStoredSession(), undefined)
   assert.deepEqual(revokedTokens, ['active-token'])
 })
@@ -500,14 +533,19 @@ test('explicit logout retries a failed remote revocation within the store lifeti
 
 test('late login and restore results cannot replace newer local state', async () => {
   const restoration = deferred<Session>()
+  const validationStarted = deferred<undefined>()
   const persisted = createStorage(storedSession('token-a'))
   const sdk = {
-    toSession: async (): Promise<Session> => restoration.promise,
+    toSession: async (): Promise<Session> => {
+      validationStarted.resolve(undefined)
+
+      return restoration.promise
+    },
   } as AuthSessionSdk
   const store = createAuthSessionStore({ sdk, storage: persisted.storage })
   const initialization = store.initialize()
 
-  await Promise.resolve()
+  await validationStarted.promise
   const staleGeneration = store.getSnapshot().generation
   await store.clearSession(staleGeneration)
   await store.acceptSession(
@@ -526,6 +564,7 @@ test('late login and restore results cannot replace newer local state', async ()
 
 test('a sync result cannot overwrite a newer accepted account', async () => {
   const synchronization = deferred<Session>()
+  const validationStarted = deferred<undefined>()
   const persisted = createStorage(storedSession('token-a'))
   let calls = 0
   const sdk = {
@@ -536,6 +575,8 @@ test('a sync result cannot overwrite a newer accepted account', async () => {
         return session(xSessionToken === 'token-b' ? 'account-b' : 'account-a')
       }
 
+      validationStarted.resolve(undefined)
+
       return synchronization.promise
     },
   } as AuthSessionSdk
@@ -543,6 +584,8 @@ test('a sync result cannot overwrite a newer accepted account', async () => {
 
   await store.initialize()
   const pendingSynchronization = store.syncSession()
+
+  await validationStarted.promise
   await store.acceptSession(
     { session: session('account-b'), sessionToken: 'token-b' },
     store.getSnapshot().generation
@@ -556,6 +599,38 @@ test('a sync result cannot overwrite a newer accepted account', async () => {
     session: session('account-b'),
     sessionToken: 'token-b',
   })
+  assert.deepEqual(persisted.getStoredSession(), storedSession('token-b'))
+})
+
+test('an older inactive response cannot delete a newer accepted credential', async () => {
+  const validation = deferred<Session>()
+  const validationStarted = deferred<undefined>()
+  const persisted = createStorage(storedSession('token-a'))
+  const sdk = {
+    toSession: async ({ xSessionToken }: { xSessionToken?: string }): Promise<Session> => {
+      if (xSessionToken === 'token-b') {
+        return session('account-b')
+      }
+
+      validationStarted.resolve(undefined)
+
+      return validation.promise
+    },
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage: persisted.storage })
+  const initialization = store.initialize()
+
+  await validationStarted.promise
+  await store.acceptSession(
+    { session: session('account-b'), sessionToken: 'token-b' },
+    store.getSnapshot().generation
+  )
+  validation.reject(responseError(401))
+  await initialization
+
+  assert.equal(store.getSnapshot().session?.id, 'account-b')
+  assert.equal(store.getSnapshot().sessionToken, 'token-b')
+  assert.deepEqual(persisted.getStoredSession(), storedSession('token-b'))
 })
 
 test('sync waits for an accepted session instead of validating its predecessor', async () => {

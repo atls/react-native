@@ -227,6 +227,8 @@ export const createAuthSessionStore = ({
       sessionToken: storedSession.sessionToken,
     }
 
+    emit(persistedSnapshot(expectedGeneration))
+
     let session: Session | undefined
 
     try {
@@ -384,7 +386,8 @@ export const createAuthSessionStore = ({
       await restoreStoredSession(false)
     },
     logout: async (): Promise<void> => {
-      const sessionToken = snapshot.sessionToken ?? failedLogoutToken
+      const sessionToken =
+        snapshot.sessionToken ?? persistedCredential?.sessionToken ?? failedLogoutToken
 
       emit({
         generation: snapshot.generation + 1,
