@@ -41,7 +41,7 @@
   },
   "peerDependencies": {
     "@ory/kratos-client-fetch": "^26.2.0",
-    "@react-native-async-storage/async-storage": "^1.21.0 || ^2.0.0 || ^3.0.0",
+    "@react-native-async-storage/async-storage": "^1.21.0 || ^2.0.0",
     "expo-auth-session": "^5.4.0 || ^6.0.0 || ^7.0.0 || ^56.0.0",
     "expo-secure-store": "^12.8.1 || ^13.0.0 || ^14.0.0 || ^15.0.0 || ^56.0.0",
     "expo-web-browser": "^12.8.2 || ^13.0.0 || ^14.0.0 || ^15.0.0 || ^56.0.0",
