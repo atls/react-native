@@ -138,6 +138,45 @@ test('surfaces a storage read failure and retries session restoration', async ()
   assert.equal(reads, 2)
 })
 
+test('keeps the authenticated Provider state after a retryable refresh failure', async () => {
+  const refreshError = new Error('offline')
+  let auth: ContextAuth | undefined
+  let calls = 0
+  const storage: SessionTokenStorage = {
+    delete: async (): Promise<void> => undefined,
+    read: async (): Promise<StoredSessionToken> => storedSessionToken('active-token'),
+    write: async (): Promise<void> => undefined,
+  }
+  const sdk = {
+    toSession: async (): Promise<Session> => {
+      calls += 1
+
+      if (calls === 1) {
+        return session('active-account')
+      }
+
+      throw refreshError
+    },
+  } as unknown as FrontendApi
+
+  renderAuth({ sdk, storage }, (nextAuth) => {
+    auth = nextAuth
+  })
+
+  await screen.findByText('true')
+
+  const refreshSession = auth?.refreshSession
+
+  assert.ok(refreshSession)
+  await act(async () => {
+    await assert.rejects(refreshSession(), (error) => error === refreshError)
+  })
+
+  assert.equal(screen.getByTestId('authenticated').textContent, 'true')
+  assert.equal(screen.getByTestId('error').textContent, 'offline')
+  assert.equal(screen.getByTestId('token').textContent, 'active-token')
+})
+
 test('a stale setter cannot clear the current account but current logout can', async () => {
   let auth: ContextAuth | undefined
   let token: string | undefined

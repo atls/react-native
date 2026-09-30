@@ -140,6 +140,64 @@ test('retains the token after network and server failures', async () => {
   )
 })
 
+test('retains the confirmed session after a retryable refresh failure', async () => {
+  const refreshError = new TypeError('offline')
+  const persisted = createStorage('active-token')
+  const activeSession = session('active-account')
+  let calls = 0
+  const sdk = {
+    toSession: async () => {
+      calls += 1
+
+      if (calls === 1) {
+        return activeSession
+      }
+
+      throw refreshError
+    },
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage: persisted.storage })
+
+  await store.initialize()
+  await assert.rejects(store.refreshSession(), (error) => error === refreshError)
+
+  assert.deepEqual(store.getSnapshot(), {
+    error: refreshError,
+    generation: 0,
+    initialized: true,
+    session: activeSession,
+    sessionToken: 'active-token',
+  })
+})
+
+test('a retryable refresh failure cannot replace a newer account', async () => {
+  const refresh = deferred<Session>()
+  const persisted = createStorage('active-token')
+  let calls = 0
+  const sdk = {
+    toSession: async () => {
+      calls += 1
+
+      return calls === 1 ? session('initial-account') : refresh.promise
+    },
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage: persisted.storage })
+
+  await store.initialize()
+  const pendingRefresh = store.refreshSession()
+  await store.acceptSession({ session: session('next-account'), sessionToken: 'next-token' }, 0)
+
+  refresh.reject(new TypeError('offline'))
+  await pendingRefresh
+
+  assert.deepEqual(store.getSnapshot(), {
+    generation: 1,
+    initialized: true,
+    session: session('next-account'),
+    sessionToken: 'next-token',
+  })
+})
+
 test('surfaces a storage read failure and allows a later restore retry', async () => {
   const storageError = new Error('secure storage unavailable')
   let reads = 0

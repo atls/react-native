@@ -109,8 +109,8 @@ export const createAuthSessionStore = ({
       }
 
       emit({
+        ...snapshot,
         error,
-        generation: expectedGeneration,
         initialized: true,
         sessionToken,
       })
