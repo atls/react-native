@@ -19,8 +19,11 @@ import { render }                   from '@testing-library/react'
 import { screen }                   from '@testing-library/react'
 import React                        from 'react'
 
+import { AuthContext }              from '../src/providers/auth.provider.js'
 import { AuthProvider }             from '../src/providers/auth.provider.js'
 import { useAuth }                  from '../src/hooks/index.js'
+
+const publicAuthContext: React.Context<ContextAuth> = AuthContext
 
 interface Deferred<T> {
   promise: Promise<T>
@@ -104,6 +107,7 @@ test('waits for the initial credential read and exposes the public lifecycle act
   })
 
   assert.equal(screen.getByTestId('authenticated').textContent, 'false')
+  assert.equal(publicAuthContext, AuthContext)
   assert.equal(typeof auth?.logout, 'function')
   assert.equal(typeof auth?.setSession, 'function')
   assert.equal(typeof auth?.syncSession, 'function')

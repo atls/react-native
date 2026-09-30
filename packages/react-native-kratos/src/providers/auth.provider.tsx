@@ -26,7 +26,14 @@ export interface ContextAuth {
 
 export type SessionContext = NativeSession | undefined
 
-export const AuthContext = createContext<ContextAuth | undefined>(undefined)
+const defaultAuth: ContextAuth = {
+  isAuthenticated: false,
+  logout: async (): Promise<void> => undefined,
+  setSession: async (): Promise<void> => undefined,
+  syncSession: async (): Promise<void> => undefined,
+}
+
+export const AuthContext = createContext<ContextAuth>(defaultAuth)
 
 export interface AuthProviderProps {
   children: ReactNode
