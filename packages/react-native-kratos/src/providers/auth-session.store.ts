@@ -84,12 +84,25 @@ export const createAuthSessionStore = ({
       return
     }
 
+    const clearedGeneration = expectedGeneration + 1
+
     emit({
-      generation: expectedGeneration + 1,
+      generation: clearedGeneration,
       initialized: true,
     })
 
-    await enqueueStorageMutation(async () => storage.delete())
+    try {
+      await enqueueStorageMutation(async () => storage.delete())
+    } catch (error) {
+      if (snapshot.generation === clearedGeneration) {
+        emit({
+          ...snapshot,
+          error,
+        })
+      }
+
+      throw error
+    }
   }
 
   const restoreSession = async (

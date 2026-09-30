@@ -111,6 +111,40 @@ test('deletes a token only when the SDK confirms an inactive session', async () 
   assert.deepEqual(persisted.calls, ['read', 'delete'])
 })
 
+test('surfaces a failed inactive-token cleanup', async () => {
+  const cleanupError = new Error('secure storage unavailable')
+  const calls: Array<string> = []
+  const storage: SessionTokenStorage = {
+    delete: async (): Promise<void> => {
+      calls.push('delete')
+
+      throw cleanupError
+    },
+    read: async (): Promise<StoredSessionToken> => {
+      calls.push('read')
+
+      return storedSessionToken('inactive-token')
+    },
+    write: async (): Promise<void> => undefined,
+  }
+  const sdk = {
+    performNativeLogout: async (): Promise<void> => undefined,
+    toSession: async () => {
+      throw new ResponseError(new Response(undefined, { status: 401 }))
+    },
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage })
+
+  await store.initialize()
+
+  assert.deepEqual(store.getSnapshot(), {
+    error: cleanupError,
+    generation: 1,
+    initialized: true,
+  })
+  assert.deepEqual(calls, ['read', 'delete'])
+})
+
 test('retains the token after network and server failures', async () => {
   await Promise.all(
     [
