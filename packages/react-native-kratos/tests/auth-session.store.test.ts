@@ -1,15 +1,16 @@
-import type { Session }             from '@ory/kratos-client-fetch'
+import type { Session }              from '@ory/kratos-client-fetch'
 
-import type { AuthSessionSdk }      from '../src/providers/auth-session.store.js'
-import type { SessionTokenStorage } from '../src/providers/session-token.storage.js'
-import type { StoredSessionToken }  from '../src/providers/session-token.storage.js'
+import type { AuthSessionSdk }       from '../src/providers/auth-session.store.js'
+import type { SessionTokenStorage }  from '../src/providers/session-token.storage.js'
+import type { StoredSessionToken }   from '../src/providers/session-token.storage.js'
 
-import assert                       from 'node:assert/strict'
-import { test }                     from 'node:test'
+import assert                        from 'node:assert/strict'
+import { test }                      from 'node:test'
 
-import { ResponseError }            from '@ory/kratos-client-fetch'
+import { ResponseError }             from '@ory/kratos-client-fetch'
 
-import { createAuthSessionStore }   from '../src/providers/auth-session.store.js'
+import { createAuthSessionStore }    from '../src/providers/auth-session.store.js'
+import { createSessionTokenStorage } from '../src/providers/session-token.storage.js'
 
 const session = (id: string): Session => ({ id, active: true }) as Session
 
@@ -258,6 +259,82 @@ test('logout still revokes the captured token when local deletion fails', async 
     generation: 1,
     initialized: true,
   })
+})
+
+test('a failed logout deletion settles before the next account is persisted', async () => {
+  const currentDelete = deferred<undefined>()
+  const legacyDeleteStarted = deferred<undefined>()
+  const values = new Map([['session_token', 'token-a']])
+  let legacyDeleteAttempts = 0
+  const storage = createSessionTokenStorage(
+    'ios',
+    {
+      deleteItemAsync: async (key): Promise<void> => {
+        if (key === 'session_token') {
+          await currentDelete.promise
+          values.delete(key)
+
+          return
+        }
+
+        legacyDeleteAttempts += 1
+        legacyDeleteStarted.resolve(undefined)
+
+        if (legacyDeleteAttempts === 1) {
+          throw new Error('legacy storage unavailable')
+        }
+
+        values.delete(key)
+      },
+      getItemAsync: async (key): Promise<string | null> => values.get(key) ?? null,
+      setItemAsync: async (key, value): Promise<void> => {
+        values.set(key, value)
+      },
+    },
+    {
+      getItem: async (): Promise<null> => null,
+      removeItem: async (): Promise<void> => undefined,
+      setItem: async (): Promise<void> => undefined,
+    }
+  )
+  const store = createAuthSessionStore({
+    sdk: {
+      performNativeLogout: async (): Promise<void> => undefined,
+      toSession: async (): Promise<Session> => session('account-a'),
+    },
+    storage,
+  })
+
+  await store.initialize()
+  let logoutError: unknown
+  const logout = store.logout().catch((error: unknown) => {
+    logoutError = error
+  })
+
+  await legacyDeleteStarted.promise
+
+  const nextLogin = store.acceptSession(
+    { session: session('account-b'), sessionToken: 'token-b' },
+    store.getSnapshot().generation
+  )
+
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve)
+  })
+  currentDelete.resolve(undefined)
+
+  const [logoutResult, loginResult] = await Promise.allSettled([logout, nextLogin])
+
+  assert.equal(logoutResult.status, 'fulfilled')
+  assert.match(String(logoutError), /legacy storage unavailable/)
+  assert.equal(loginResult.status, 'fulfilled')
+  assert.deepEqual(store.getSnapshot(), {
+    generation: 2,
+    initialized: true,
+    session: session('account-b'),
+    sessionToken: 'token-b',
+  })
+  assert.equal(values.get('session_token'), 'token-b')
 })
 
 test('account switching replaces the token used by the next logout', async () => {
