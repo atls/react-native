@@ -2,6 +2,7 @@ import type { Session }             from '@ory/kratos-client-fetch'
 
 import type { AuthSessionSdk }      from '../src/providers/auth-session.store.js'
 import type { SessionTokenStorage } from '../src/providers/session-token.storage.js'
+import type { StoredSessionToken }  from '../src/providers/session-token.storage.js'
 
 import assert                       from 'node:assert/strict'
 import { test }                     from 'node:test'
@@ -11,6 +12,11 @@ import { ResponseError }            from '@ory/kratos-client-fetch'
 import { createAuthSessionStore }   from '../src/providers/auth-session.store.js'
 
 const session = (id: string): Session => ({ id, active: true }) as Session
+
+const storedSessionToken = (
+  sessionToken: string,
+  requiresMigration = false
+): StoredSessionToken => ({ requiresMigration, sessionToken })
 
 interface Deferred<T> {
   promise: Promise<T>
@@ -46,7 +52,7 @@ const createStorage = (initialToken?: string): TestStorage => {
     read: async () => {
       calls.push('read')
 
-      return token
+      return token ? storedSessionToken(token) : undefined
     },
     write: async (nextToken) => {
       calls.push(`write:${nextToken}`)
@@ -140,14 +146,14 @@ test('surfaces a storage read failure and allows a later restore retry', async (
   const restored = session('restored-after-storage-recovery')
   const storage: SessionTokenStorage = {
     delete: async (): Promise<void> => undefined,
-    read: async (): Promise<string> => {
+    read: async (): Promise<StoredSessionToken> => {
       reads += 1
 
       if (reads === 1) {
         throw storageError
       }
 
-      return 'persisted-token'
+      return storedSessionToken('persisted-token')
     },
     write: async (): Promise<void> => undefined,
   }
@@ -211,7 +217,7 @@ test('logout still revokes the captured token when local deletion fails', async 
     delete: async (): Promise<void> => {
       throw localError
     },
-    read: async (): Promise<string> => 'captured-token',
+    read: async (): Promise<StoredSessionToken> => storedSessionToken('captured-token'),
     write: async (): Promise<void> => undefined,
   }
   const sdk = {
@@ -427,6 +433,107 @@ test('late restore and refresh results cannot reauthorize after logout', async (
     generation: 1,
     initialized: true,
   })
+})
+
+test('logout removes a token written by an in-flight legacy migration', async () => {
+  const migration = deferred<undefined>()
+  const migrationStarted = deferred<undefined>()
+  const calls: Array<string> = []
+  let token: string | undefined
+  const storage: SessionTokenStorage = {
+    delete: async () => {
+      calls.push('delete')
+      token = undefined
+    },
+    read: async () => {
+      calls.push('read')
+
+      return storedSessionToken('legacy-token', true)
+    },
+    write: async (nextToken) => {
+      calls.push(`write:${nextToken}`)
+      migrationStarted.resolve(undefined)
+      await migration.promise
+      token = nextToken
+    },
+  }
+  const revokedTokens: Array<string> = []
+  const sdk = {
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }) => {
+      revokedTokens.push(performNativeLogoutBody.session_token)
+    },
+    toSession: async () => session('legacy-account'),
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage })
+  const initialization = store.initialize()
+
+  await migrationStarted.promise
+
+  const logout = store.logout()
+
+  migration.resolve(undefined)
+  await Promise.all([initialization, logout])
+
+  assert.deepEqual(store.getSnapshot(), {
+    generation: 1,
+    initialized: true,
+  })
+  assert.equal(token, undefined)
+  assert.deepEqual(calls, ['read', 'write:legacy-token', 'delete'])
+  assert.deepEqual(revokedTokens, ['legacy-token'])
+})
+
+test('account switching supersedes an in-flight legacy migration', async () => {
+  const migration = deferred<undefined>()
+  const migrationStarted = deferred<undefined>()
+  const calls: Array<string> = []
+  let token: string | undefined
+  let writes = 0
+  const storage: SessionTokenStorage = {
+    delete: async () => {
+      token = undefined
+    },
+    read: async () => storedSessionToken('legacy-token', true),
+    write: async (nextToken) => {
+      writes += 1
+      calls.push(`write:${nextToken}`)
+
+      if (writes === 1) {
+        migrationStarted.resolve(undefined)
+        await migration.promise
+      }
+
+      token = nextToken
+    },
+  }
+  const sdk = {
+    toSession: async () => session('legacy-account'),
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage })
+  const initialization = store.initialize()
+
+  await migrationStarted.promise
+
+  const accountSwitch = store.acceptSession(
+    { session: session('next-account'), sessionToken: 'next-token' },
+    store.getSnapshot().generation
+  )
+
+  migration.resolve(undefined)
+  await Promise.all([initialization, accountSwitch])
+
+  assert.deepEqual(store.getSnapshot(), {
+    generation: 1,
+    initialized: true,
+    session: session('next-account'),
+    sessionToken: 'next-token',
+  })
+  assert.equal(token, 'next-token')
+  assert.deepEqual(calls, ['write:legacy-token', 'write:next-token'])
 })
 
 test('rejects native flow results without a session token', async () => {

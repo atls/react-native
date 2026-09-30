@@ -7,6 +7,7 @@ import type { ReactElement }           from 'react'
 
 import type { ContextAuth }            from '../src/providers/index.js'
 import type { SessionTokenStorage }    from '../src/providers/session-token.storage.js'
+import type { StoredSessionToken }     from '../src/providers/session-token.storage.js'
 
 import assert                          from 'node:assert/strict'
 import { afterEach }                   from 'node:test'
@@ -42,6 +43,11 @@ const deferred = <T,>(): Deferred<T> => {
 }
 
 const session = (id: string): Session => ({ id, active: true }) as Session
+
+const storedSessionToken = (sessionToken: string): StoredSessionToken => ({
+  requiresMigration: false,
+  sessionToken,
+})
 
 interface AuthProbeProps {
   onAuth: (auth: ContextAuth) => void
@@ -84,20 +90,20 @@ afterEach(() => {
 
 test('surfaces a storage read failure and retries session restoration', async () => {
   const storageError = new Error('secure storage unavailable')
-  const firstRead = deferred<string>()
+  const firstRead = deferred<StoredSessionToken>()
   let reads = 0
   let auth: ContextAuth | undefined
   const restoredSession = session('restored')
   const storage: SessionTokenStorage = {
     delete: async (): Promise<void> => undefined,
-    read: async (): Promise<string> => {
+    read: async (): Promise<StoredSessionToken> => {
       reads += 1
 
       if (reads === 1) {
         return firstRead.promise
       }
 
-      return 'persisted-token'
+      return storedSessionToken('persisted-token')
     },
     write: async (): Promise<void> => undefined,
   }

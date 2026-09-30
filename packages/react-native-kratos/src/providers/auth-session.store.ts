@@ -2,6 +2,7 @@ import type { FrontendApi }         from '@ory/kratos-client-fetch'
 import type { Session }             from '@ory/kratos-client-fetch'
 
 import type { SessionTokenStorage } from './session-token.storage.js'
+import type { StoredSessionToken }  from './session-token.storage.js'
 
 import { ResponseError }            from '@ory/kratos-client-fetch'
 
@@ -150,10 +151,10 @@ export const createAuthSessionStore = ({
     getSnapshot: (): AuthSessionSnapshot => snapshot,
     initialize: async (): Promise<void> => {
       const expectedGeneration = snapshot.generation
-      let sessionToken: string | undefined
+      let storedSessionToken: StoredSessionToken | undefined
 
       try {
-        sessionToken = await storage.read()
+        storedSessionToken = await storage.read()
       } catch (error) {
         if (snapshot.generation === expectedGeneration) {
           emit({
@@ -170,7 +171,7 @@ export const createAuthSessionStore = ({
         return
       }
 
-      if (!sessionToken) {
+      if (!storedSessionToken) {
         emit({
           generation: expectedGeneration,
           initialized: true,
@@ -179,7 +180,36 @@ export const createAuthSessionStore = ({
         return
       }
 
-      await Promise.allSettled([restoreSession(sessionToken, expectedGeneration)])
+      const { requiresMigration, sessionToken } = storedSessionToken
+      const [restoration] = await Promise.allSettled([
+        restoreSession(sessionToken, expectedGeneration),
+      ])
+
+      if (
+        !requiresMigration ||
+        restoration.status === 'rejected' ||
+        !restoration.value ||
+        snapshot.generation !== expectedGeneration
+      ) {
+        return
+      }
+
+      try {
+        await enqueueStorageMutation(async () => {
+          if (snapshot.generation !== expectedGeneration) {
+            return
+          }
+
+          await storage.write(sessionToken)
+        })
+      } catch (error) {
+        if (snapshot.generation === expectedGeneration) {
+          emit({
+            ...snapshot,
+            error,
+          })
+        }
+      }
     },
     logout: async (expectedGeneration): Promise<void> => {
       if (typeof expectedGeneration !== 'undefined' && snapshot.generation !== expectedGeneration) {
