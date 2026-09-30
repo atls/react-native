@@ -58,10 +58,15 @@ export const createAuthSessionStore = ({
     }
   }
 
-  const enqueueStorageMutation = async (mutation: () => Promise<void>): Promise<void> => {
+  const enqueueStorageMutation = async <Result>(
+    mutation: () => Promise<Result>
+  ): Promise<Result> => {
     const operation = storageQueue.then(mutation, mutation)
 
-    storageQueue = operation.catch(() => undefined)
+    storageQueue = operation.then(
+      () => undefined,
+      () => undefined
+    )
 
     return operation
   }
@@ -159,7 +164,9 @@ export const createAuthSessionStore = ({
         return
       }
 
+      const previousSessionToken = snapshot.sessionToken
       const reservedGeneration = expectedGeneration + 1
+      let acceptedSession: boolean
 
       pendingAcceptanceGeneration = reservedGeneration
 
@@ -170,15 +177,15 @@ export const createAuthSessionStore = ({
 
       try {
         try {
-          await enqueueStorageMutation(async () => {
+          acceptedSession = await enqueueStorageMutation(async () => {
             if (snapshot.generation !== reservedGeneration) {
-              return
+              return false
             }
 
             await storage.write(sessionToken)
 
             if (snapshot.generation !== reservedGeneration) {
-              return
+              return false
             }
 
             emit({
@@ -187,6 +194,8 @@ export const createAuthSessionStore = ({
               session,
               sessionToken,
             })
+
+            return true
           })
         } catch (persistenceError) {
           try {
@@ -201,8 +210,36 @@ export const createAuthSessionStore = ({
           throw persistenceError
         }
 
-        if (snapshot.generation !== reservedGeneration) {
-          await revokeStaleSessionToken(sessionToken)
+        const tokensToRevoke = new Set<string>()
+
+        if (acceptedSession && previousSessionToken && previousSessionToken !== sessionToken) {
+          tokensToRevoke.add(previousSessionToken)
+        }
+
+        if (snapshot.sessionToken !== sessionToken) {
+          tokensToRevoke.add(sessionToken)
+        }
+
+        const revocationResults = await Promise.allSettled(
+          Array.from(tokensToRevoke, async (token) => revokeSessionToken(token))
+        )
+        const revocationErrors = revocationResults.flatMap((result) =>
+          result.status === 'rejected' ? [result.reason as unknown] : [])
+
+        if (revocationErrors.length > 0) {
+          const error =
+            revocationErrors.length === 1
+              ? revocationErrors[0]
+              : new AggregateError(revocationErrors, 'Session replacement cleanup failed')
+
+          if (snapshot.sessionToken === sessionToken) {
+            emit({
+              ...snapshot,
+              error,
+            })
+          }
+
+          throw error
         }
       } finally {
         if (pendingAcceptanceGeneration === reservedGeneration) {

@@ -210,6 +210,7 @@ test('a retryable refresh failure cannot replace a newer account', async () => {
   const persisted = createStorage('active-token')
   let calls = 0
   const sdk = {
+    performNativeLogout: async (): Promise<void> => undefined,
     toSession: async () => {
       calls += 1
 
@@ -239,6 +240,7 @@ test('an inactive refresh cannot invalidate an accepted account waiting on stora
   const writeStarted = deferred<undefined>()
   let token: string | undefined = 'token-a'
   const calls: Array<string> = []
+  const revokedTokens: Array<string> = []
   const storage: SessionTokenStorage = {
     delete: async (): Promise<void> => {
       calls.push('delete')
@@ -254,6 +256,13 @@ test('an inactive refresh cannot invalidate an accepted account waiting on stora
   }
   let sessionCalls = 0
   const sdk = {
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }): Promise<void> => {
+      revokedTokens.push(performNativeLogoutBody.session_token)
+    },
     toSession: async (): Promise<Session> => {
       sessionCalls += 1
 
@@ -294,6 +303,7 @@ test('an inactive refresh cannot invalidate an accepted account waiting on stora
   })
   assert.equal(token, 'token-b')
   assert.deepEqual(calls, ['write:token-b'])
+  assert.deepEqual(revokedTokens, ['token-a'])
 })
 
 test('a refresh started during pending acceptance cannot replace the accepted account', async () => {
@@ -506,9 +516,46 @@ test('account switching replaces the token used by the next logout', async () =>
   await store.acceptSession({ session: session('second-account'), sessionToken: 'second-token' }, 1)
   await store.logout()
 
-  assert.deepEqual(remoteTokens, ['second-token'])
+  assert.deepEqual(remoteTokens, ['first-token', 'second-token'])
   assert.equal(persisted.getToken(), undefined)
   assert.deepEqual(persisted.calls, ['read', 'write:first-token', 'write:second-token', 'delete'])
+})
+
+test('keeps the accepted account when revoking the superseded token fails', async () => {
+  const revocationError = new Error('identity service unavailable')
+  const persisted = createStorage()
+  const remoteTokens: Array<string> = []
+  const sdk = {
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }): Promise<void> => {
+      remoteTokens.push(performNativeLogoutBody.session_token)
+
+      throw revocationError
+    },
+    toSession: async (): Promise<Session> => session('unused'),
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage: persisted.storage })
+
+  await store.initialize()
+  await store.acceptSession({ session: session('first-account'), sessionToken: 'first-token' }, 0)
+  await assert.rejects(
+    store.acceptSession({ session: session('second-account'), sessionToken: 'second-token' }, 1),
+    (error) => error === revocationError
+  )
+
+  assert.deepEqual(store.getSnapshot(), {
+    error: revocationError,
+    generation: 2,
+    initialized: true,
+    session: session('second-account'),
+    sessionToken: 'second-token',
+  })
+  assert.equal(persisted.getToken(), 'second-token')
+  assert.deepEqual(remoteTokens, ['first-token'])
+  assert.deepEqual(persisted.calls, ['read', 'write:first-token', 'write:second-token'])
 })
 
 test('a failed legacy cleanup cannot split the accepted account from persisted state', async () => {
@@ -586,7 +633,7 @@ test('a failed legacy cleanup cannot split the accepted account from persisted s
     generation: 2,
     initialized: true,
   })
-  assert.deepEqual(revokedTokens, ['token-b'])
+  assert.deepEqual(revokedTokens, ['token-a', 'token-b'])
   assert.equal(values.has('session_token'), false)
   assert.equal(values.has('user_session'), false)
 })
@@ -647,7 +694,7 @@ test('a failed legacy deletion cannot expose an older account after logout', asy
     generation: 2,
     initialized: true,
   })
-  assert.deepEqual(revokedTokens, ['token-b'])
+  assert.deepEqual(revokedTokens, ['token-a', 'token-b'])
   assert.equal(values.get('session_token'), 'token-b')
   assert.equal(values.has('user_session'), true)
   assert.equal(currentDeleteAttempts, 0)
@@ -975,7 +1022,15 @@ test('account switching supersedes an in-flight legacy migration', async () => {
       token = nextToken
     },
   }
+  const revokedTokens: Array<string> = []
   const sdk = {
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }): Promise<void> => {
+      revokedTokens.push(performNativeLogoutBody.session_token)
+    },
     toSession: async () => session('legacy-account'),
   } as AuthSessionSdk
   const store = createAuthSessionStore({ sdk, storage })
@@ -999,6 +1054,7 @@ test('account switching supersedes an in-flight legacy migration', async () => {
   })
   assert.equal(token, 'next-token')
   assert.deepEqual(calls, ['write:legacy-token', 'write:next-token'])
+  assert.deepEqual(revokedTokens, ['legacy-token'])
 })
 
 test('rejects native flow results without a session token', async () => {
