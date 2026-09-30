@@ -629,6 +629,7 @@ test('a late login result cannot recreate a logged-out session or token', async 
   const write = deferred<undefined>()
   let token: string | undefined
   const calls: Array<string> = []
+  const revokedTokens: Array<string> = []
   const storage: SessionTokenStorage = {
     delete: async () => {
       calls.push('delete')
@@ -641,7 +642,15 @@ test('a late login result cannot recreate a logged-out session or token', async 
       token = nextToken
     },
   }
-  const sdk = {} as AuthSessionSdk
+  const sdk = {
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }): Promise<void> => {
+      revokedTokens.push(performNativeLogoutBody.session_token)
+    },
+  } as AuthSessionSdk
   const store = createAuthSessionStore({ sdk, storage })
 
   await store.initialize()
@@ -674,6 +683,39 @@ test('a late login result cannot recreate a logged-out session or token', async 
   })
   assert.equal(token, 'next-token')
   assert.deepEqual(calls, ['write:late-token', 'delete', 'write:next-token'])
+  assert.deepEqual(revokedTokens, ['late-token'])
+})
+
+test('revokes a login result that arrives after logout', async () => {
+  const persisted = createStorage()
+  const revokedTokens: Array<string> = []
+  const sdk = {
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }): Promise<void> => {
+      revokedTokens.push(performNativeLogoutBody.session_token)
+    },
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage: persisted.storage })
+
+  await store.initialize()
+  const { generation } = store.getSnapshot()
+
+  await store.logout()
+  await store.acceptSession(
+    { session: session('late-login'), sessionToken: 'late-token' },
+    generation
+  )
+
+  assert.deepEqual(store.getSnapshot(), {
+    generation: 1,
+    initialized: true,
+  })
+  assert.equal(persisted.getToken(), undefined)
+  assert.deepEqual(persisted.calls, ['read', 'delete'])
+  assert.deepEqual(revokedTokens, ['late-token'])
 })
 
 test('late restore and refresh results cannot reauthorize after logout', async () => {

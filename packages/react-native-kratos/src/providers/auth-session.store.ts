@@ -65,6 +65,20 @@ export const createAuthSessionStore = ({
     return operation
   }
 
+  const revokeSessionToken = async (sessionToken: string): Promise<void> => {
+    await sdk.performNativeLogout({
+      performNativeLogoutBody: {
+        session_token: sessionToken,
+      },
+    })
+  }
+
+  const revokeStaleSessionToken = async (sessionToken: string): Promise<void> => {
+    if (snapshot.sessionToken !== sessionToken) {
+      await revokeSessionToken(sessionToken)
+    }
+  }
+
   const clearInactiveSession = async (expectedGeneration: number): Promise<void> => {
     if (snapshot.generation !== expectedGeneration) {
       return
@@ -126,6 +140,8 @@ export const createAuthSessionStore = ({
       }
 
       if (snapshot.generation !== expectedGeneration) {
+        await revokeStaleSessionToken(sessionToken)
+
         return
       }
 
@@ -154,6 +170,10 @@ export const createAuthSessionStore = ({
           sessionToken,
         })
       })
+
+      if (snapshot.generation !== reservedGeneration) {
+        await revokeStaleSessionToken(sessionToken)
+      }
     },
     getSnapshot: (): AuthSessionSnapshot => snapshot,
     initialize: async (): Promise<void> => {
@@ -235,13 +255,7 @@ export const createAuthSessionStore = ({
       ]
 
       if (sessionToken) {
-        operations.push(
-          sdk.performNativeLogout({
-            performNativeLogoutBody: {
-              session_token: sessionToken,
-            },
-          })
-        )
+        operations.push(revokeSessionToken(sessionToken))
       }
 
       const results = await Promise.allSettled(operations)

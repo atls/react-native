@@ -356,7 +356,7 @@ test('concurrent Provider results keep memory, storage, and logout on one accoun
 
   assert.equal(screen.getByTestId('authenticated').textContent, 'false')
   assert.equal(token, undefined)
-  assert.deepEqual(revokedTokens, ['token-a'])
+  assert.deepEqual(revokedTokens, ['token-b', 'token-a'])
 })
 
 test('a held browser result keeps its flow code and cannot reauthorize after logout', async () => {
@@ -365,6 +365,7 @@ test('a held browser result keeps its flow code and cannot reauthorize after log
   let token: string | undefined
   const browser = deferred<{ type: string; url: string }>()
   const exchanges: Array<{ initCode: string; returnToCode: string }> = []
+  const revokedTokens: Array<string> = []
   const storage: SessionTokenStorage = {
     delete: async (): Promise<void> => {
       token = undefined
@@ -379,6 +380,13 @@ test('a held browser result keeps its flow code and cannot reauthorize after log
       exchanges.push(request)
 
       return { session: session('late-exchange'), session_token: 'late-token' }
+    },
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }): Promise<void> => {
+      revokedTokens.push(performNativeLogoutBody.session_token)
     },
   } as unknown as FrontendApi
 
@@ -409,4 +417,5 @@ test('a held browser result keeps its flow code and cannot reauthorize after log
   assert.deepEqual(exchanges, [{ initCode: 'init-a', returnToCode: 'return-a' }])
   assert.equal(screen.getByTestId('authenticated').textContent, 'false')
   assert.equal(token, undefined)
+  assert.deepEqual(revokedTokens, ['late-token'])
 })
