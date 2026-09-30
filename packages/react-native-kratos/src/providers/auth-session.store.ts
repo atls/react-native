@@ -21,11 +21,12 @@ export interface AuthSessionSnapshot {
 
 export interface AuthSessionStore {
   acceptSession: (session: NativeSession, expectedGeneration: number) => Promise<void>
+  clearSession: (expectedGeneration: number) => Promise<void>
   getSnapshot: () => AuthSessionSnapshot
   initialize: () => Promise<void>
-  logout: (expectedGeneration?: number) => Promise<void>
-  refreshSession: () => Promise<Session | undefined>
+  logout: () => Promise<void>
   subscribe: (listener: () => void) => () => void
+  syncSession: () => Promise<void>
 }
 
 export type AuthSessionSdk = Pick<FrontendApi, 'performNativeLogout' | 'toSession'>
@@ -43,11 +44,11 @@ export const createAuthSessionStore = ({
   storage,
 }: AuthSessionStoreOptions): AuthSessionStore => {
   const listeners = new Set<() => void>()
+  let pendingAcceptanceGeneration: number | undefined
   let snapshot: AuthSessionSnapshot = {
     generation: 0,
     initialized: false,
   }
-  let pendingAcceptanceGeneration: number | undefined
   let storageQueue = Promise.resolve()
 
   const emit = (nextSnapshot: AuthSessionSnapshot): void => {
@@ -58,47 +59,46 @@ export const createAuthSessionStore = ({
     }
   }
 
-  const enqueueStorageMutation = async <Result>(
-    mutation: () => Promise<Result>
+  const enqueueStorageOperation = async <Result>(
+    operation: () => Promise<Result>
   ): Promise<Result> => {
-    const operation = storageQueue.then(mutation, mutation)
+    const result = storageQueue.then(operation, operation)
 
-    storageQueue = operation.then(
+    storageQueue = result.then(
       () => undefined,
       () => undefined
     )
 
-    return operation
+    return result
   }
 
-  const revokeSessionToken = async (sessionToken: string): Promise<void> => {
-    await sdk.performNativeLogout({
-      performNativeLogoutBody: {
-        session_token: sessionToken,
-      },
-    })
-  }
-
-  const revokeStaleSessionToken = async (sessionToken: string): Promise<void> => {
-    if (snapshot.sessionToken !== sessionToken) {
-      await revokeSessionToken(sessionToken)
-    }
-  }
-
-  const clearInactiveSession = async (expectedGeneration: number): Promise<void> => {
-    if (snapshot.generation !== expectedGeneration) {
+  const clearInactiveSession = async (
+    sessionToken: string,
+    expectedGeneration: number
+  ): Promise<void> => {
+    if (
+      snapshot.generation !== expectedGeneration ||
+      (snapshot.sessionToken && snapshot.sessionToken !== sessionToken)
+    ) {
       return
     }
 
     const clearedGeneration = expectedGeneration + 1
 
+    pendingAcceptanceGeneration = undefined
     emit({
       generation: clearedGeneration,
       initialized: true,
     })
 
     try {
-      await enqueueStorageMutation(async () => storage.delete())
+      await enqueueStorageOperation(async () => {
+        const storedSession = await storage.read()
+
+        if (storedSession?.sessionToken === sessionToken) {
+          await storage.delete()
+        }
+      })
     } catch (error) {
       if (snapshot.generation === clearedGeneration) {
         emit({
@@ -111,14 +111,17 @@ export const createAuthSessionStore = ({
     }
   }
 
-  const restoreSession = async (
+  const validateSession = async (
     sessionToken: string,
     expectedGeneration: number
   ): Promise<Session | undefined> => {
     try {
       const session = await sdk.toSession({ xSessionToken: sessionToken })
 
-      if (snapshot.generation !== expectedGeneration) {
+      if (
+        snapshot.generation !== expectedGeneration ||
+        (snapshot.sessionToken && snapshot.sessionToken !== sessionToken)
+      ) {
         return undefined
       }
 
@@ -131,12 +134,15 @@ export const createAuthSessionStore = ({
 
       return session
     } catch (error) {
-      if (snapshot.generation !== expectedGeneration) {
+      if (
+        snapshot.generation !== expectedGeneration ||
+        (snapshot.sessionToken && snapshot.sessionToken !== sessionToken)
+      ) {
         return undefined
       }
 
       if (isInactiveSessionError(error)) {
-        await clearInactiveSession(expectedGeneration)
+        await clearInactiveSession(sessionToken, expectedGeneration)
 
         return undefined
       }
@@ -152,6 +158,84 @@ export const createAuthSessionStore = ({
     }
   }
 
+  const restoreStoredSession = async (propagateError: boolean): Promise<Session | undefined> => {
+    const expectedGeneration = snapshot.generation
+    let storedSession: StoredSessionToken | undefined
+
+    try {
+      storedSession = await enqueueStorageOperation(async () => storage.read())
+    } catch (error) {
+      if (snapshot.generation === expectedGeneration) {
+        emit({
+          ...snapshot,
+          error,
+          initialized: true,
+        })
+      }
+
+      if (propagateError) {
+        throw error
+      }
+
+      return undefined
+    }
+
+    if (snapshot.generation !== expectedGeneration) {
+      return undefined
+    }
+
+    if (!storedSession) {
+      emit({
+        ...snapshot,
+        error: undefined,
+        initialized: true,
+      })
+
+      return undefined
+    }
+
+    let session: Session | undefined
+
+    try {
+      session = await validateSession(storedSession.sessionToken, expectedGeneration)
+    } catch (error) {
+      if (propagateError) {
+        throw error
+      }
+
+      return undefined
+    }
+
+    if (
+      !session ||
+      !storedSession.requiresMigration ||
+      snapshot.generation !== expectedGeneration ||
+      snapshot.sessionToken !== storedSession.sessionToken
+    ) {
+      return session
+    }
+
+    try {
+      await enqueueStorageOperation(async () => storage.write(storedSession.sessionToken, session))
+    } catch (error) {
+      if (
+        snapshot.generation === expectedGeneration &&
+        snapshot.sessionToken === storedSession.sessionToken
+      ) {
+        emit({
+          ...snapshot,
+          error,
+        })
+      }
+
+      if (propagateError) {
+        throw error
+      }
+    }
+
+    return session
+  }
+
   return {
     acceptSession: async ({ session, sessionToken }, expectedGeneration): Promise<void> => {
       if (!sessionToken) {
@@ -159,175 +243,103 @@ export const createAuthSessionStore = ({
       }
 
       if (snapshot.generation !== expectedGeneration) {
-        await revokeStaleSessionToken(sessionToken)
-
         return
       }
 
-      const previousSessionToken = snapshot.sessionToken
+      const previousSnapshot = snapshot
       const reservedGeneration = expectedGeneration + 1
-      let acceptedSession: boolean
 
       pendingAcceptanceGeneration = reservedGeneration
-
       emit({
-        ...snapshot,
+        ...previousSnapshot,
         generation: reservedGeneration,
       })
 
       try {
-        try {
-          acceptedSession = await enqueueStorageMutation(async () => {
-            if (snapshot.generation !== reservedGeneration) {
-              return false
-            }
+        await enqueueStorageOperation(async () => storage.write(sessionToken, session))
 
-            await storage.write(sessionToken)
-
-            if (snapshot.generation !== reservedGeneration) {
-              return false
-            }
-
-            emit({
-              generation: reservedGeneration,
-              initialized: true,
-              session,
-              sessionToken,
-            })
-
-            return true
+        if (
+          snapshot.generation === reservedGeneration &&
+          pendingAcceptanceGeneration === reservedGeneration
+        ) {
+          emit({
+            generation: reservedGeneration,
+            initialized: true,
+            session,
+            sessionToken,
           })
-        } catch (persistenceError) {
-          try {
-            await revokeStaleSessionToken(sessionToken)
-          } catch (revocationError) {
-            throw new AggregateError(
-              [persistenceError, revocationError],
-              'Session persistence and revocation failed'
-            )
-          }
-
-          throw persistenceError
+        }
+      } catch (error) {
+        if (
+          snapshot.generation === reservedGeneration &&
+          pendingAcceptanceGeneration === reservedGeneration
+        ) {
+          emit({
+            ...previousSnapshot,
+            error,
+            generation: reservedGeneration,
+            initialized: true,
+          })
         }
 
-        const tokensToRevoke = new Set<string>()
-
-        if (acceptedSession && previousSessionToken && previousSessionToken !== sessionToken) {
-          tokensToRevoke.add(previousSessionToken)
-        }
-
-        if (snapshot.sessionToken !== sessionToken) {
-          tokensToRevoke.add(sessionToken)
-        }
-
-        const revocationResults = await Promise.allSettled(
-          Array.from(tokensToRevoke, async (token) => revokeSessionToken(token))
-        )
-        const revocationErrors = revocationResults.flatMap((result) =>
-          result.status === 'rejected' ? [result.reason as unknown] : [])
-
-        if (revocationErrors.length > 0) {
-          const error =
-            revocationErrors.length === 1
-              ? revocationErrors[0]
-              : new AggregateError(revocationErrors, 'Session replacement cleanup failed')
-
-          if (snapshot.sessionToken === sessionToken) {
-            emit({
-              ...snapshot,
-              error,
-            })
-          }
-
-          throw error
-        }
+        throw error
       } finally {
         if (pendingAcceptanceGeneration === reservedGeneration) {
           pendingAcceptanceGeneration = undefined
         }
       }
     },
-    getSnapshot: (): AuthSessionSnapshot => snapshot,
-    initialize: async (): Promise<void> => {
-      const expectedGeneration = snapshot.generation
-      let storedSessionToken: StoredSessionToken | undefined
-
-      try {
-        storedSessionToken = await storage.read()
-      } catch (error) {
-        if (snapshot.generation === expectedGeneration) {
-          emit({
-            ...snapshot,
-            error,
-            initialized: true,
-          })
-        }
-
-        return
-      }
-
+    clearSession: async (expectedGeneration): Promise<void> => {
       if (snapshot.generation !== expectedGeneration) {
         return
       }
 
-      if (!storedSessionToken) {
-        emit({
-          generation: expectedGeneration,
-          initialized: true,
-        })
+      const clearedGeneration = expectedGeneration + 1
 
-        return
-      }
-
-      const { requiresMigration, sessionToken } = storedSessionToken
-      const [restoration] = await Promise.allSettled([
-        restoreSession(sessionToken, expectedGeneration),
-      ])
-
-      if (
-        !requiresMigration ||
-        restoration.status === 'rejected' ||
-        !restoration.value ||
-        snapshot.generation !== expectedGeneration
-      ) {
-        return
-      }
+      pendingAcceptanceGeneration = undefined
+      emit({
+        generation: clearedGeneration,
+        initialized: true,
+      })
 
       try {
-        await enqueueStorageMutation(async () => {
-          if (snapshot.generation !== expectedGeneration) {
-            return
-          }
-
-          await storage.write(sessionToken)
-        })
+        await enqueueStorageOperation(async () => storage.delete())
       } catch (error) {
-        if (snapshot.generation === expectedGeneration) {
+        if (snapshot.generation === clearedGeneration) {
           emit({
             ...snapshot,
             error,
           })
         }
+
+        throw error
       }
     },
-    logout: async (expectedGeneration): Promise<void> => {
-      if (typeof expectedGeneration !== 'undefined' && snapshot.generation !== expectedGeneration) {
-        return
-      }
-
+    getSnapshot: (): AuthSessionSnapshot => snapshot,
+    initialize: async (): Promise<void> => {
+      await restoreStoredSession(false)
+    },
+    logout: async (): Promise<void> => {
       const { sessionToken } = snapshot
 
+      pendingAcceptanceGeneration = undefined
       emit({
         generation: snapshot.generation + 1,
         initialized: true,
       })
 
       const operations: Array<Promise<void>> = [
-        enqueueStorageMutation(async () => storage.delete()),
+        enqueueStorageOperation(async () => storage.delete()),
       ]
 
       if (sessionToken) {
-        operations.push(revokeSessionToken(sessionToken))
+        operations.push(
+          sdk.performNativeLogout({
+            performNativeLogoutBody: {
+              session_token: sessionToken,
+            },
+          })
+        )
       }
 
       const results = await Promise.allSettled(operations)
@@ -342,21 +354,27 @@ export const createAuthSessionStore = ({
         throw new AggregateError(errors, 'Logout failed')
       }
     },
-    refreshSession: async (): Promise<Session | undefined> => {
-      const { generation, sessionToken } = snapshot
-
-      if (!sessionToken || pendingAcceptanceGeneration === generation) {
-        return undefined
-      }
-
-      return restoreSession(sessionToken, generation)
-    },
     subscribe: (listener): (() => void) => {
       listeners.add(listener)
 
       return (): void => {
         listeners.delete(listener)
       }
+    },
+    syncSession: async (): Promise<void> => {
+      const { generation, sessionToken } = snapshot
+
+      if (pendingAcceptanceGeneration === generation) {
+        return
+      }
+
+      if (!sessionToken) {
+        await restoreStoredSession(true)
+
+        return
+      }
+
+      await validateSession(sessionToken, generation)
     },
   }
 }

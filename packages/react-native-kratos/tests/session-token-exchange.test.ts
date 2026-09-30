@@ -79,6 +79,33 @@ test('does not exchange a canceled browser session', async () => {
   assert.equal(exchanged, false)
 })
 
+test('does not authenticate when the vendor exchange fails', async () => {
+  const exchangeError = new Error('exchange failed')
+  let accepted = false
+  const handler = createNativeRedirectHandler({
+    getInitCode: () => 'init-code',
+    openAuthSession: async () => ({
+      type: 'success',
+      url: 'atls://Callback?code=return-code',
+    }),
+    returnTo: 'atls://Callback',
+    sdk: {
+      exchangeSessionToken: async () => {
+        throw exchangeError
+      },
+    } as SessionExchangeSdk,
+    setSession: async () => {
+      accepted = true
+    },
+  })
+
+  await assert.rejects(
+    handler('https://identity.example.test/oidc', true),
+    (error) => error === exchangeError
+  )
+  assert.equal(accepted, false)
+})
+
 test('captures the flow init code before waiting for the browser result', async () => {
   let initCode = 'init-a'
   const browser = deferred<{ type: string; url: string }>()

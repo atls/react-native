@@ -28,28 +28,69 @@ export const App = () => (
 )
 ```
 
-`AuthProvider` stores only the `session_token`: in Expo SecureStore on native
-and in AsyncStorage on web. On startup, it restores the session through
-`toSession`. A `401` response clears a token whose session is confirmed to be
-inactive. Network failures, `403` responses, and `5xx` responses retain the
-token and expose the error through `useAuth()` so the consumer can call
-`refreshSession` again. A storage read failure is likewise exposed after the
-initial loading state; `retrySessionRestore` repeats the read and restore
-without clearing the token.
+`AuthProvider` stores the raw `session_token` under the `user_session` key in
+Expo SecureStore on native. It keeps the released JSON shape in AsyncStorage on
+web for import compatibility. A native value written by an earlier release is
+migrated from JSON to the raw token only after `toSession` has validated it.
 
-`logout` immediately closes the current generation of local auth state,
-removes the token, and calls `performNativeLogout` with the token captured
-before cleanup. Late login, restore, refresh, and browser-exchange results
-cannot reapply a session from an older generation.
+The provider never treats a stored token as proof of authentication. On
+startup, it restores the server session through `toSession`; only the returned
+session makes `isAuthenticated` true. A `401` response clears the exact token
+whose session Kratos confirmed inactive. Network failures, AAL responses, and
+`5xx` responses retain the token and any previously confirmed session, expose
+the error through `useAuth()`, and can be retried with `syncSession()`.
+
+`setSession(undefined)` only clears local auth state and storage. `logout()`
+immediately closes the current generation of local auth state, removes the
+token, and calls `performNativeLogout` with the token captured before cleanup.
+It attempts both operations and reports either or both failures. Replacing an
+account does not revoke another session automatically. Late login,
+registration, restore, synchronization, and browser-exchange results cannot
+reapply a session from an older generation.
 
 Login and registration pass redirects from the shared Ory `handleFlowError`
-through Expo WebBrowser. After the browser returns, the adapter exchanges the
-`session_token_exchange_code` / `code` pair through `exchangeSessionToken`; the
-package does not reproduce Ory's error switch locally.
+through Expo WebBrowser. Both wrappers accept an optional `returnTo`; otherwise
+they create the Expo callback URI. After the browser returns, the adapter
+exchanges the `session_token_exchange_code` / `code` pair through
+`exchangeSessionToken`; the package does not reproduce Ory's error switch
+locally.
+
+## Supported versions
+
+The supported dependency stacks are deliberately narrow:
+
+| Expo | React Native | React | React Native Web |
+| ---- | ------------ | ----- | ---------------- |
+| 50   | 0.73         | 18    | 0.19             |
+| 56   | 0.85         | 19    | 0.21             |
+
+The package re-exports the shared `@atls/react-kratos@0.1.0` API. The web
+storage path preserves the released fallback and import surface, but a web
+bundle alone is not production authentication acceptance.
+
+## Native acceptance setup
+
+Use self-hosted Kratos `v26.2.0` and `@ory/kratos-client-fetch@26.2.0` for
+device acceptance. The reference setup requires:
+
+- a public Kratos endpoint reachable from both iOS and Android test devices;
+- enabled password login and registration, plus an enabled OIDC provider for
+  the browser-return case;
+- the exact application callback, such as `my-app://Callback`, in
+  `selfservice.allowed_return_urls`;
+- the same callback in the Expo application scheme/link configuration and in
+  each native flow wrapper's `returnTo` prop; and
+- the OIDC provider callback configured for Kratos itself, separately from the
+  application callback.
+
+Keep provider secrets in the server's secret store. With that setup, verify
+login, registration, browser cancellation and return, restore after restart,
+`syncSession()`, `logout()`, inactive-session cleanup, temporary network/server
+failures, and account switching on both platforms. These checks exercise token
+authentication; they do not rely on a browser session cookie.
 
 ## Acceptance boundary
 
-Automated build, unit, type, lint, and Expo 50 Metro bundle checks do not replace
-consumer acceptance on Expo 56 / React Native 0.85 / React 19 or login,
-registration, restart restore, logout, and account-switching checks against a
-real Kratos deployment on a device or simulator.
+Automated build, unit, type, lint, pack, and Metro bundle checks do not replace
+login, registration, restart restore, logout, and account-switching checks
+against a real self-hosted Kratos deployment on a device or simulator.

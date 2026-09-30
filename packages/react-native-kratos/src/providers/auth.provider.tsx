@@ -18,11 +18,10 @@ export interface ContextAuth {
   error?: unknown
   isAuthenticated: boolean
   logout: () => Promise<void>
-  refreshSession: () => Promise<Session | undefined>
   session?: Session
   sessionToken?: string
   setSession: (session: SessionContext) => Promise<void>
-  retrySessionRestore: () => Promise<void>
+  syncSession: () => Promise<void>
 }
 
 export type SessionContext = NativeSession | undefined
@@ -46,16 +45,15 @@ export const AuthProvider = ({ children, storage }: AuthProviderProps): ReactEle
   const value = useMemo<ContextAuth>(
     () => ({
       error: snapshot.error,
-      isAuthenticated: Boolean(snapshot.session),
+      isAuthenticated: snapshot.session?.active === true,
       logout: async (): Promise<void> => store.logout(),
-      refreshSession: store.refreshSession,
-      retrySessionRestore: store.initialize,
       session: snapshot.session,
       sessionToken: snapshot.sessionToken,
       setSession: async (session): Promise<void> =>
         session
           ? store.acceptSession(session, snapshot.generation)
-          : store.logout(snapshot.generation),
+          : store.clearSession(snapshot.generation),
+      syncSession: store.syncSession,
     }),
     [snapshot, store]
   )

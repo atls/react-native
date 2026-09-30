@@ -17,20 +17,24 @@ import { createNativeRedirectHandler }     from './session-token-exchange.js'
 export interface ReactNativeRegistrationFlowProps {
   children: ReactNode
   onError?: (error: unknown) => void
+  returnTo?: string
 }
 
 export const ReactNativeRegistrationFlow = ({
   children,
   onError,
+  returnTo: configuredReturnTo,
 }: ReactNativeRegistrationFlowProps): ReactElement => {
   const { setSession } = useAuth()
   const sdk = useSdk()
   const exchangeCode = useRef<string>()
   const [redirectError, setRedirectError] = useState<unknown>()
-  const returnTo = makeRedirectUri({
-    preferLocalhost: true,
-    path: '/Callback',
-  })
+  const returnTo =
+    configuredReturnTo ??
+    makeRedirectUri({
+      preferLocalhost: true,
+      path: '/Callback',
+    })
   const onCode = useCallback((code: string) => {
     exchangeCode.current = code
   }, [])

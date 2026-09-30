@@ -236,7 +236,7 @@ const RAW_RUNTIME_STATE =
           ["@types/react", "npm:18.3.18"],\
           ["@types/react-dom", "virtual:124f21b60b511c4f9b7f792ba6947b962f01b056135c23cbf14cd28ac97ce751dbb7a1d283cf1884709a2b37f7a682386919b58c6cb68a1e14bb902355f09490#npm:18.3.5"],\
           ["expo", "npm:50.0.21"],\
-          ["expo-auth-session", "npm:5.5.2"],\
+          ["expo-auth-session", "npm:5.4.0"],\
           ["expo-secure-store", "virtual:124f21b60b511c4f9b7f792ba6947b962f01b056135c23cbf14cd28ac97ce751dbb7a1d283cf1884709a2b37f7a682386919b58c6cb68a1e14bb902355f09490#npm:12.8.1"],\
           ["expo-web-browser", "virtual:124f21b60b511c4f9b7f792ba6947b962f01b056135c23cbf14cd28ac97ce751dbb7a1d283cf1884709a2b37f7a682386919b58c6cb68a1e14bb902355f09490#npm:12.8.2"],\
           ["global-jsdom", "virtual:124f21b60b511c4f9b7f792ba6947b962f01b056135c23cbf14cd28ac97ce751dbb7a1d283cf1884709a2b37f7a682386919b58c6cb68a1e14bb902355f09490#npm:25.0.0"],\
@@ -4802,24 +4802,6 @@ const RAW_RUNTIME_STATE =
           ["sucrase", "npm:3.34.0"]\
         ],\
         "linkType": "HARD"\
-      }],\
-      ["npm:9.0.4", {\
-        "packageLocation": "../.yarn/berry/cache/@expo-config-npm-9.0.4-8a9bbdd8ab-10.zip/node_modules/@expo/config/",\
-        "packageDependencies": [\
-          ["@babel/code-frame", "npm:7.10.4"],\
-          ["@expo/config", "npm:9.0.4"],\
-          ["@expo/config-plugins", "npm:8.0.11"],\
-          ["@expo/config-types", "npm:51.0.3"],\
-          ["@expo/json-file", "npm:8.3.3"],\
-          ["getenv", "npm:1.0.0"],\
-          ["glob", "npm:7.1.6"],\
-          ["require-from-string", "npm:2.0.2"],\
-          ["resolve-from", "npm:5.0.0"],\
-          ["semver", "npm:7.6.3"],\
-          ["slugify", "npm:1.6.6"],\
-          ["sucrase", "npm:3.34.0"]\
-        ],\
-        "linkType": "HARD"\
       }]\
     ]],\
     ["@expo/config-plugins", [\
@@ -4846,28 +4828,6 @@ const RAW_RUNTIME_STATE =
           ["xml2js", "npm:0.6.0"]\
         ],\
         "linkType": "HARD"\
-      }],\
-      ["npm:8.0.11", {\
-        "packageLocation": "../.yarn/berry/cache/@expo-config-plugins-npm-8.0.11-798f6c390c-10.zip/node_modules/@expo/config-plugins/",\
-        "packageDependencies": [\
-          ["@expo/config-plugins", "npm:8.0.11"],\
-          ["@expo/config-types", "npm:51.0.3"],\
-          ["@expo/json-file", "npm:8.3.3"],\
-          ["@expo/plist", "npm:0.1.3"],\
-          ["@expo/sdk-runtime-versions", "npm:1.0.0"],\
-          ["chalk", "npm:4.1.2"],\
-          ["debug", "virtual:5372f94f60354e044992e7caec3d7b6c0a01bc27684ca64c0ad5ec78bb1e4e3a5c8bae5ffc28175bcd04f35d90eeedc4d92f4267fad1d89e026bda696fcdd216#npm:4.3.4"],\
-          ["find-up", "npm:5.0.0"],\
-          ["getenv", "npm:1.0.0"],\
-          ["glob", "npm:7.1.6"],\
-          ["resolve-from", "npm:5.0.0"],\
-          ["semver", "npm:7.6.3"],\
-          ["slash", "npm:3.0.0"],\
-          ["slugify", "npm:1.6.6"],\
-          ["xcode", "npm:3.0.1"],\
-          ["xml2js", "npm:0.6.0"]\
-        ],\
-        "linkType": "HARD"\
       }]\
     ]],\
     ["@expo/config-types", [\
@@ -4875,13 +4835,6 @@ const RAW_RUNTIME_STATE =
         "packageLocation": "../.yarn/berry/cache/@expo-config-types-npm-50.0.1-0f1d6c903e-10.zip/node_modules/@expo/config-types/",\
         "packageDependencies": [\
           ["@expo/config-types", "npm:50.0.1"]\
-        ],\
-        "linkType": "HARD"\
-      }],\
-      ["npm:51.0.3", {\
-        "packageLocation": "../.yarn/berry/cache/@expo-config-types-npm-51.0.3-a67774c7b1-10.zip/node_modules/@expo/config-types/",\
-        "packageDependencies": [\
-          ["@expo/config-types", "npm:51.0.3"]\
         ],\
         "linkType": "HARD"\
       }]\
@@ -4902,18 +4855,6 @@ const RAW_RUNTIME_STATE =
         "packageLocation": "../.yarn/berry/cache/@expo-env-npm-0.2.3-a3ebfe4879-10.zip/node_modules/@expo/env/",\
         "packageDependencies": [\
           ["@expo/env", "npm:0.2.3"],\
-          ["chalk", "npm:4.1.2"],\
-          ["debug", "virtual:5372f94f60354e044992e7caec3d7b6c0a01bc27684ca64c0ad5ec78bb1e4e3a5c8bae5ffc28175bcd04f35d90eeedc4d92f4267fad1d89e026bda696fcdd216#npm:4.3.4"],\
-          ["dotenv", "npm:16.4.7"],\
-          ["dotenv-expand", "npm:11.0.7"],\
-          ["getenv", "npm:1.0.0"]\
-        ],\
-        "linkType": "HARD"\
-      }],\
-      ["npm:0.3.0", {\
-        "packageLocation": "../.yarn/berry/cache/@expo-env-npm-0.3.0-e2e06d2e99-10.zip/node_modules/@expo/env/",\
-        "packageDependencies": [\
-          ["@expo/env", "npm:0.3.0"],\
           ["chalk", "npm:4.1.2"],\
           ["debug", "virtual:5372f94f60354e044992e7caec3d7b6c0a01bc27684ca64c0ad5ec78bb1e4e3a5c8bae5ffc28175bcd04f35d90eeedc4d92f4267fad1d89e026bda696fcdd216#npm:4.3.4"],\
           ["dotenv", "npm:16.4.7"],\
@@ -11053,19 +10994,19 @@ const RAW_RUNTIME_STATE =
       }]\
     ]],\
     ["expo-application", [\
-      ["npm:5.9.1", {\
-        "packageLocation": "./.yarn/unplugged/expo-application-virtual-fba8ea3419/node_modules/expo-application/",\
+      ["npm:5.8.4", {\
+        "packageLocation": "./.yarn/unplugged/expo-application-virtual-03afcdd87e/node_modules/expo-application/",\
         "packageDependencies": [\
-          ["expo-application", "npm:5.9.1"]\
+          ["expo-application", "npm:5.8.4"]\
         ],\
         "linkType": "SOFT"\
       }],\
-      ["virtual:82364b8db9d620b38791d51cc5f76ef76164667368980b0965186e4d38c07e391cbe8b353624065efde597b7cc4164ad80f7f254c910391bc76682a3eafdeccc#npm:5.9.1", {\
-        "packageLocation": "./.yarn/unplugged/expo-application-virtual-fba8ea3419/node_modules/expo-application/",\
+      ["virtual:f8a06b85fb7994f1f0ed5f51493024079378fc59a7bb2c14af89268e32f36ac27ee71fbebcc497c63aa601d755c6cc5284b486c567c1a94d3fb7b3068b118511#npm:5.8.4", {\
+        "packageLocation": "./.yarn/unplugged/expo-application-virtual-03afcdd87e/node_modules/expo-application/",\
         "packageDependencies": [\
           ["@types/expo", null],\
           ["expo", null],\
-          ["expo-application", "virtual:82364b8db9d620b38791d51cc5f76ef76164667368980b0965186e4d38c07e391cbe8b353624065efde597b7cc4164ad80f7f254c910391bc76682a3eafdeccc#npm:5.9.1"]\
+          ["expo-application", "virtual:f8a06b85fb7994f1f0ed5f51493024079378fc59a7bb2c14af89268e32f36ac27ee71fbebcc497c63aa601d755c6cc5284b486c567c1a94d3fb7b3068b118511#npm:5.8.4"]\
         ],\
         "packagePeers": [\
           "@types/expo",\
@@ -11081,7 +11022,7 @@ const RAW_RUNTIME_STATE =
           ["@react-native/assets-registry", "npm:0.73.1"],\
           ["blueimp-md5", "npm:2.19.0"],\
           ["expo-asset", "npm:9.0.2"],\
-          ["expo-constants", "virtual:2d6f68408d3a72217956e7fd912344781f6a92f5472bfac26761e76a090a33941d11a02e9e05f81858b370fd201a5bcbeeb0557046e0bc5f0f4c6088995ba055#npm:15.4.6"],\
+          ["expo-constants", "virtual:3e375637595428d3b734e58805b092e2208fad0d4cd1495956f40651f234314a302a2f7eb5ab01dede8d71ea5c66eb231afd36e412188e341f825edd90d69183#npm:15.4.6"],\
           ["expo-file-system", "virtual:2d6f68408d3a72217956e7fd912344781f6a92f5472bfac26761e76a090a33941d11a02e9e05f81858b370fd201a5bcbeeb0557046e0bc5f0f4c6088995ba055#npm:16.0.9"],\
           ["invariant", "npm:2.2.4"],\
           ["md5-file", "npm:3.2.3"]\
@@ -11090,15 +11031,15 @@ const RAW_RUNTIME_STATE =
       }]\
     ]],\
     ["expo-auth-session", [\
-      ["npm:5.5.2", {\
-        "packageLocation": "../.yarn/berry/cache/expo-auth-session-npm-5.5.2-82364b8db9-10.zip/node_modules/expo-auth-session/",\
+      ["npm:5.4.0", {\
+        "packageLocation": "../.yarn/berry/cache/expo-auth-session-npm-5.4.0-f8a06b85fb-10.zip/node_modules/expo-auth-session/",\
         "packageDependencies": [\
-          ["expo-application", "virtual:82364b8db9d620b38791d51cc5f76ef76164667368980b0965186e4d38c07e391cbe8b353624065efde597b7cc4164ad80f7f254c910391bc76682a3eafdeccc#npm:5.9.1"],\
-          ["expo-auth-session", "npm:5.5.2"],\
-          ["expo-constants", "virtual:a3ad2dddd21b36d9fd9979f058943292db595438727dd68b4a6e9506a24ab34b34dea8d4dc7461969de039890c3d647ff8e3e831b4525102a77edb3132c6e247#npm:16.0.2"],\
-          ["expo-crypto", "virtual:82364b8db9d620b38791d51cc5f76ef76164667368980b0965186e4d38c07e391cbe8b353624065efde597b7cc4164ad80f7f254c910391bc76682a3eafdeccc#npm:13.0.2"],\
-          ["expo-linking", "npm:6.3.1"],\
-          ["expo-web-browser", "virtual:82364b8db9d620b38791d51cc5f76ef76164667368980b0965186e4d38c07e391cbe8b353624065efde597b7cc4164ad80f7f254c910391bc76682a3eafdeccc#npm:13.0.3"],\
+          ["expo-application", "virtual:f8a06b85fb7994f1f0ed5f51493024079378fc59a7bb2c14af89268e32f36ac27ee71fbebcc497c63aa601d755c6cc5284b486c567c1a94d3fb7b3068b118511#npm:5.8.4"],\
+          ["expo-auth-session", "npm:5.4.0"],\
+          ["expo-constants", "virtual:3e375637595428d3b734e58805b092e2208fad0d4cd1495956f40651f234314a302a2f7eb5ab01dede8d71ea5c66eb231afd36e412188e341f825edd90d69183#npm:15.4.6"],\
+          ["expo-crypto", "virtual:f8a06b85fb7994f1f0ed5f51493024079378fc59a7bb2c14af89268e32f36ac27ee71fbebcc497c63aa601d755c6cc5284b486c567c1a94d3fb7b3068b118511#npm:12.8.1"],\
+          ["expo-linking", "npm:6.2.2"],\
+          ["expo-web-browser", "virtual:f8a06b85fb7994f1f0ed5f51493024079378fc59a7bb2c14af89268e32f36ac27ee71fbebcc497c63aa601d755c6cc5284b486c567c1a94d3fb7b3068b118511#npm:12.8.2"],\
           ["invariant", "npm:2.2.4"]\
         ],\
         "linkType": "HARD"\
@@ -11106,41 +11047,19 @@ const RAW_RUNTIME_STATE =
     ]],\
     ["expo-constants", [\
       ["npm:15.4.6", {\
-        "packageLocation": "./.yarn/unplugged/expo-constants-virtual-4639010d08/node_modules/expo-constants/",\
+        "packageLocation": "./.yarn/unplugged/expo-constants-virtual-bf93c2fef1/node_modules/expo-constants/",\
         "packageDependencies": [\
           ["expo-constants", "npm:15.4.6"]\
         ],\
         "linkType": "SOFT"\
       }],\
-      ["npm:16.0.2", {\
-        "packageLocation": "./.yarn/unplugged/expo-constants-virtual-41f348010f/node_modules/expo-constants/",\
-        "packageDependencies": [\
-          ["expo-constants", "npm:16.0.2"]\
-        ],\
-        "linkType": "SOFT"\
-      }],\
-      ["virtual:2d6f68408d3a72217956e7fd912344781f6a92f5472bfac26761e76a090a33941d11a02e9e05f81858b370fd201a5bcbeeb0557046e0bc5f0f4c6088995ba055#npm:15.4.6", {\
-        "packageLocation": "./.yarn/unplugged/expo-constants-virtual-4639010d08/node_modules/expo-constants/",\
+      ["virtual:3e375637595428d3b734e58805b092e2208fad0d4cd1495956f40651f234314a302a2f7eb5ab01dede8d71ea5c66eb231afd36e412188e341f825edd90d69183#npm:15.4.6", {\
+        "packageLocation": "./.yarn/unplugged/expo-constants-virtual-bf93c2fef1/node_modules/expo-constants/",\
         "packageDependencies": [\
           ["@expo/config", "npm:8.5.6"],\
           ["@types/expo", null],\
           ["expo", null],\
-          ["expo-constants", "virtual:2d6f68408d3a72217956e7fd912344781f6a92f5472bfac26761e76a090a33941d11a02e9e05f81858b370fd201a5bcbeeb0557046e0bc5f0f4c6088995ba055#npm:15.4.6"]\
-        ],\
-        "packagePeers": [\
-          "@types/expo",\
-          "expo"\
-        ],\
-        "linkType": "HARD"\
-      }],\
-      ["virtual:a3ad2dddd21b36d9fd9979f058943292db595438727dd68b4a6e9506a24ab34b34dea8d4dc7461969de039890c3d647ff8e3e831b4525102a77edb3132c6e247#npm:16.0.2", {\
-        "packageLocation": "./.yarn/unplugged/expo-constants-virtual-41f348010f/node_modules/expo-constants/",\
-        "packageDependencies": [\
-          ["@expo/config", "npm:9.0.4"],\
-          ["@expo/env", "npm:0.3.0"],\
-          ["@types/expo", null],\
-          ["expo", null],\
-          ["expo-constants", "virtual:a3ad2dddd21b36d9fd9979f058943292db595438727dd68b4a6e9506a24ab34b34dea8d4dc7461969de039890c3d647ff8e3e831b4525102a77edb3132c6e247#npm:16.0.2"]\
+          ["expo-constants", "virtual:3e375637595428d3b734e58805b092e2208fad0d4cd1495956f40651f234314a302a2f7eb5ab01dede8d71ea5c66eb231afd36e412188e341f825edd90d69183#npm:15.4.6"]\
         ],\
         "packagePeers": [\
           "@types/expo",\
@@ -11150,20 +11069,20 @@ const RAW_RUNTIME_STATE =
       }]\
     ]],\
     ["expo-crypto", [\
-      ["npm:13.0.2", {\
-        "packageLocation": "../.yarn/berry/cache/expo-crypto-npm-13.0.2-938ccc64e9-10.zip/node_modules/expo-crypto/",\
+      ["npm:12.8.1", {\
+        "packageLocation": "../.yarn/berry/cache/expo-crypto-npm-12.8.1-88368557fc-10.zip/node_modules/expo-crypto/",\
         "packageDependencies": [\
-          ["expo-crypto", "npm:13.0.2"]\
+          ["expo-crypto", "npm:12.8.1"]\
         ],\
         "linkType": "SOFT"\
       }],\
-      ["virtual:82364b8db9d620b38791d51cc5f76ef76164667368980b0965186e4d38c07e391cbe8b353624065efde597b7cc4164ad80f7f254c910391bc76682a3eafdeccc#npm:13.0.2", {\
-        "packageLocation": "./.yarn/__virtual__/expo-crypto-virtual-97db7e5f0f/2/.yarn/berry/cache/expo-crypto-npm-13.0.2-938ccc64e9-10.zip/node_modules/expo-crypto/",\
+      ["virtual:f8a06b85fb7994f1f0ed5f51493024079378fc59a7bb2c14af89268e32f36ac27ee71fbebcc497c63aa601d755c6cc5284b486c567c1a94d3fb7b3068b118511#npm:12.8.1", {\
+        "packageLocation": "./.yarn/__virtual__/expo-crypto-virtual-243cb96b86/2/.yarn/berry/cache/expo-crypto-npm-12.8.1-88368557fc-10.zip/node_modules/expo-crypto/",\
         "packageDependencies": [\
           ["@types/expo", null],\
           ["base64-js", "npm:1.5.1"],\
           ["expo", null],\
-          ["expo-crypto", "virtual:82364b8db9d620b38791d51cc5f76ef76164667368980b0965186e4d38c07e391cbe8b353624065efde597b7cc4164ad80f7f254c910391bc76682a3eafdeccc#npm:13.0.2"]\
+          ["expo-crypto", "virtual:f8a06b85fb7994f1f0ed5f51493024079378fc59a7bb2c14af89268e32f36ac27ee71fbebcc497c63aa601d755c6cc5284b486c567c1a94d3fb7b3068b118511#npm:12.8.1"]\
         ],\
         "packagePeers": [\
           "@types/expo",\
@@ -11253,11 +11172,11 @@ const RAW_RUNTIME_STATE =
       }]\
     ]],\
     ["expo-linking", [\
-      ["npm:6.3.1", {\
-        "packageLocation": "../.yarn/berry/cache/expo-linking-npm-6.3.1-a3ad2dddd2-10.zip/node_modules/expo-linking/",\
+      ["npm:6.2.2", {\
+        "packageLocation": "../.yarn/berry/cache/expo-linking-npm-6.2.2-3e37563759-10.zip/node_modules/expo-linking/",\
         "packageDependencies": [\
-          ["expo-constants", "virtual:a3ad2dddd21b36d9fd9979f058943292db595438727dd68b4a6e9506a24ab34b34dea8d4dc7461969de039890c3d647ff8e3e831b4525102a77edb3132c6e247#npm:16.0.2"],\
-          ["expo-linking", "npm:6.3.1"],\
+          ["expo-constants", "virtual:3e375637595428d3b734e58805b092e2208fad0d4cd1495956f40651f234314a302a2f7eb5ab01dede8d71ea5c66eb231afd36e412188e341f825edd90d69183#npm:15.4.6"],\
+          ["expo-linking", "npm:6.2.2"],\
           ["invariant", "npm:2.2.4"]\
         ],\
         "linkType": "HARD"\
@@ -11318,13 +11237,6 @@ const RAW_RUNTIME_STATE =
         ],\
         "linkType": "SOFT"\
       }],\
-      ["npm:13.0.3", {\
-        "packageLocation": "../.yarn/berry/cache/expo-web-browser-npm-13.0.3-2199536aee-10.zip/node_modules/expo-web-browser/",\
-        "packageDependencies": [\
-          ["expo-web-browser", "npm:13.0.3"]\
-        ],\
-        "linkType": "SOFT"\
-      }],\
       ["virtual:124f21b60b511c4f9b7f792ba6947b962f01b056135c23cbf14cd28ac97ce751dbb7a1d283cf1884709a2b37f7a682386919b58c6cb68a1e14bb902355f09490#npm:12.8.2", {\
         "packageLocation": "./.yarn/__virtual__/expo-web-browser-virtual-fb6637273a/2/.yarn/berry/cache/expo-web-browser-npm-12.8.2-eeb8cdb12c-10.zip/node_modules/expo-web-browser/",\
         "packageDependencies": [\
@@ -11340,12 +11252,14 @@ const RAW_RUNTIME_STATE =
         ],\
         "linkType": "HARD"\
       }],\
-      ["virtual:82364b8db9d620b38791d51cc5f76ef76164667368980b0965186e4d38c07e391cbe8b353624065efde597b7cc4164ad80f7f254c910391bc76682a3eafdeccc#npm:13.0.3", {\
-        "packageLocation": "./.yarn/__virtual__/expo-web-browser-virtual-80e48cd523/2/.yarn/berry/cache/expo-web-browser-npm-13.0.3-2199536aee-10.zip/node_modules/expo-web-browser/",\
+      ["virtual:f8a06b85fb7994f1f0ed5f51493024079378fc59a7bb2c14af89268e32f36ac27ee71fbebcc497c63aa601d755c6cc5284b486c567c1a94d3fb7b3068b118511#npm:12.8.2", {\
+        "packageLocation": "./.yarn/__virtual__/expo-web-browser-virtual-a4d6f460ae/2/.yarn/berry/cache/expo-web-browser-npm-12.8.2-eeb8cdb12c-10.zip/node_modules/expo-web-browser/",\
         "packageDependencies": [\
           ["@types/expo", null],\
+          ["compare-urls", "npm:2.0.0"],\
           ["expo", null],\
-          ["expo-web-browser", "virtual:82364b8db9d620b38791d51cc5f76ef76164667368980b0965186e4d38c07e391cbe8b353624065efde597b7cc4164ad80f7f254c910391bc76682a3eafdeccc#npm:13.0.3"]\
+          ["expo-web-browser", "virtual:f8a06b85fb7994f1f0ed5f51493024079378fc59a7bb2c14af89268e32f36ac27ee71fbebcc497c63aa601d755c6cc5284b486c567c1a94d3fb7b3068b118511#npm:12.8.2"],\
+          ["url", "npm:0.11.4"]\
         ],\
         "packagePeers": [\
           "@types/expo",\

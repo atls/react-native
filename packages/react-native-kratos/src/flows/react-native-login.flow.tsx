@@ -18,21 +18,25 @@ export interface ReactNativeLoginFlowProps {
   route: { params?: { aal?: 'aal1' | 'aal2'; refresh?: boolean } }
   children: ReactNode
   onError?: (error: unknown) => void
+  returnTo?: string
 }
 
 export const ReactNativeLoginFlow = ({
   children,
   onError,
+  returnTo: configuredReturnTo,
   route,
 }: ReactNativeLoginFlowProps): ReactElement => {
   const { sessionToken, setSession } = useAuth()
   const sdk = useSdk()
   const exchangeCode = useRef<string>()
   const [redirectError, setRedirectError] = useState<unknown>()
-  const returnTo = makeRedirectUri({
-    preferLocalhost: true,
-    path: '/Callback',
-  })
+  const returnTo =
+    configuredReturnTo ??
+    makeRedirectUri({
+      preferLocalhost: true,
+      path: '/Callback',
+    })
   const onCode = useCallback((code: string) => {
     exchangeCode.current = code
   }, [])

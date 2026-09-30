@@ -1,5 +1,6 @@
-const LEGACY_SESSION_KEY = 'user_session'
-const SESSION_TOKEN_KEY = 'session_token'
+import type { Session } from '@ory/kratos-client-fetch'
+
+const SESSION_KEY = 'user_session'
 
 interface AsyncStorageAdapter {
   getItem: (key: string) => Promise<string | null>
@@ -16,7 +17,7 @@ interface SecureStoreAdapter {
 export interface SessionTokenStorage {
   delete: () => Promise<void>
   read: () => Promise<StoredSessionToken | undefined>
-  write: (sessionToken: string) => Promise<void>
+  write: (sessionToken: string, session: Session) => Promise<void>
 }
 
 export interface StoredSessionToken {
@@ -24,27 +25,38 @@ export interface StoredSessionToken {
   sessionToken: string
 }
 
-const parseLegacySessionToken = (value: string | null): string | undefined => {
+const parseStoredSessionToken = (
+  value: string | null,
+  requiresLegacyMigration: boolean
+): StoredSessionToken | undefined => {
   if (!value) {
     return undefined
   }
 
   try {
-    const session = JSON.parse(value) as unknown
+    const storedSession = JSON.parse(value) as unknown
 
-    if (
-      typeof session === 'object' &&
-      session !== null &&
-      'sessionToken' in session &&
-      typeof session.sessionToken === 'string'
-    ) {
-      return session.sessionToken
+    if (typeof storedSession === 'object' && storedSession !== null) {
+      if ('sessionToken' in storedSession && typeof storedSession.sessionToken === 'string') {
+        return {
+          requiresMigration: requiresLegacyMigration,
+          sessionToken: storedSession.sessionToken,
+        }
+      }
+
+      return undefined
+    }
+
+    return {
+      requiresMigration: false,
+      sessionToken: value,
     }
   } catch {
-    return undefined
+    return {
+      requiresMigration: false,
+      sessionToken: value,
+    }
   }
-
-  return undefined
 }
 
 export const createSessionTokenStorage = (
@@ -52,40 +64,19 @@ export const createSessionTokenStorage = (
   secureStore: SecureStoreAdapter,
   asyncStorage: AsyncStorageAdapter
 ): SessionTokenStorage => {
-  const deleteItem = async (key: string): Promise<void> =>
-    platform === 'web' ? asyncStorage.removeItem(key) : secureStore.deleteItemAsync(key)
-  const readItem = async (key: string): Promise<string | null> =>
-    platform === 'web' ? asyncStorage.getItem(key) : secureStore.getItemAsync(key)
-  const writeItem = async (key: string, value: string): Promise<void> =>
-    platform === 'web' ? asyncStorage.setItem(key, value) : secureStore.setItemAsync(key, value)
+  const web = platform === 'web'
+  const deleteItem = async (): Promise<void> =>
+    web ? asyncStorage.removeItem(SESSION_KEY) : secureStore.deleteItemAsync(SESSION_KEY)
+  const readItem = async (): Promise<string | null> =>
+    web ? asyncStorage.getItem(SESSION_KEY) : secureStore.getItemAsync(SESSION_KEY)
+  const writeItem = async (value: string): Promise<void> =>
+    web ? asyncStorage.setItem(SESSION_KEY, value) : secureStore.setItemAsync(SESSION_KEY, value)
 
   return {
-    delete: async () => {
-      await deleteItem(LEGACY_SESSION_KEY)
-      await deleteItem(SESSION_TOKEN_KEY)
-    },
-    read: async () => {
-      const sessionToken = await readItem(SESSION_TOKEN_KEY)
-
-      if (sessionToken) {
-        return {
-          requiresMigration: false,
-          sessionToken,
-        }
-      }
-
-      const legacySessionToken = parseLegacySessionToken(await readItem(LEGACY_SESSION_KEY))
-
-      return legacySessionToken
-        ? {
-            requiresMigration: true,
-            sessionToken: legacySessionToken,
-          }
-        : undefined
-    },
-    write: async (sessionToken) => {
-      await writeItem(SESSION_TOKEN_KEY, sessionToken)
-      await deleteItem(LEGACY_SESSION_KEY).catch(() => undefined)
+    delete: deleteItem,
+    read: async () => parseStoredSessionToken(await readItem(), !web),
+    write: async (sessionToken, session) => {
+      await writeItem(web ? JSON.stringify({ session, sessionToken }) : sessionToken)
     },
   }
 }
