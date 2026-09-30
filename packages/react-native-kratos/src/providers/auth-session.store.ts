@@ -179,11 +179,7 @@ export const createAuthSessionStore = ({
         return
       }
 
-      try {
-        await restoreSession(sessionToken, expectedGeneration)
-      } catch {
-        // Automatic restoration leaves retryable failures to refreshSession.
-      }
+      await Promise.allSettled([restoreSession(sessionToken, expectedGeneration)])
     },
     logout: async (expectedGeneration): Promise<void> => {
       if (typeof expectedGeneration !== 'undefined' && snapshot.generation !== expectedGeneration) {
