@@ -138,6 +138,44 @@ test('surfaces a storage read failure and retries session restoration', async ()
   assert.equal(reads, 2)
 })
 
+test('keeps the authenticated Provider state when session restore retry cannot read storage', async () => {
+  const storageError = new Error('secure storage unavailable')
+  let auth: ContextAuth | undefined
+  let reads = 0
+  const storage: SessionTokenStorage = {
+    delete: async (): Promise<void> => undefined,
+    read: async (): Promise<StoredSessionToken> => {
+      reads += 1
+
+      if (reads === 1) {
+        return storedSessionToken('active-token')
+      }
+
+      throw storageError
+    },
+    write: async (): Promise<void> => undefined,
+  }
+  const sdk = {
+    toSession: async (): Promise<Session> => session('active-account'),
+  } as unknown as FrontendApi
+
+  renderAuth({ sdk, storage }, (nextAuth) => {
+    auth = nextAuth
+  })
+
+  await screen.findByText('true')
+
+  const retrySessionRestore = auth?.retrySessionRestore
+
+  assert.ok(retrySessionRestore)
+  await act(async () => retrySessionRestore())
+
+  assert.equal(screen.getByTestId('authenticated').textContent, 'true')
+  assert.equal(screen.getByTestId('error').textContent, 'secure storage unavailable')
+  assert.equal(screen.getByTestId('token').textContent, 'active-token')
+  assert.equal(reads, 2)
+})
+
 test('keeps the authenticated Provider state after a retryable refresh failure', async () => {
   const refreshError = new Error('offline')
   let auth: ContextAuth | undefined

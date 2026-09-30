@@ -158,8 +158,8 @@ export const createAuthSessionStore = ({
       } catch (error) {
         if (snapshot.generation === expectedGeneration) {
           emit({
+            ...snapshot,
             error,
-            generation: expectedGeneration,
             initialized: true,
           })
         }
