@@ -86,8 +86,8 @@ test('stores only the raw session token in SecureStore on native platforms', asy
     ['read', 'session_token'],
     ['write', 'session_token', 'next-native-token'],
     ['delete', 'user_session'],
-    ['delete', 'session_token'],
     ['delete', 'user_session'],
+    ['delete', 'session_token'],
   ])
   assert.deepEqual(calls.async, [])
 })
@@ -107,8 +107,8 @@ test('stores only the raw session token in AsyncStorage on web', async () => {
     ['read', 'session_token'],
     ['write', 'session_token', 'next-web-token'],
     ['delete', 'user_session'],
-    ['delete', 'session_token'],
     ['delete', 'user_session'],
+    ['delete', 'session_token'],
   ])
   assert.deepEqual(calls.secure, [])
 })

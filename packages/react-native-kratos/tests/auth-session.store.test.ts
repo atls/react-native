@@ -505,6 +505,79 @@ test('a failed legacy cleanup cannot split the accepted account from persisted s
   assert.equal(values.has('user_session'), false)
 })
 
+test('a failed legacy deletion cannot expose an older account after logout', async () => {
+  const values = new Map([
+    ['session_token', 'token-a'],
+    ['user_session', JSON.stringify({ sessionToken: 'legacy-token' })],
+  ])
+  let currentDeleteAttempts = 0
+  let legacyDeleteAttempts = 0
+  const storage = createSessionTokenStorage(
+    'ios',
+    {
+      deleteItemAsync: async (key): Promise<void> => {
+        if (key === 'user_session') {
+          legacyDeleteAttempts += 1
+
+          if (legacyDeleteAttempts <= 2) {
+            throw new Error('legacy storage unavailable')
+          }
+        } else {
+          currentDeleteAttempts += 1
+        }
+
+        values.delete(key)
+      },
+      getItemAsync: async (key): Promise<string | null> => values.get(key) ?? null,
+      setItemAsync: async (key, value): Promise<void> => {
+        values.set(key, value)
+      },
+    },
+    {
+      getItem: async (): Promise<null> => null,
+      removeItem: async (): Promise<void> => undefined,
+      setItem: async (): Promise<void> => undefined,
+    }
+  )
+  const revokedTokens: Array<string> = []
+  const sdk = {
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }): Promise<void> => {
+      revokedTokens.push(performNativeLogoutBody.session_token)
+    },
+    toSession: async ({ xSessionToken }: { xSessionToken?: string }): Promise<Session> =>
+      session(xSessionToken === 'legacy-token' ? 'account-a' : 'account-b'),
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage })
+
+  await store.initialize()
+  await store.acceptSession({ session: session('account-b'), sessionToken: 'token-b' }, 0)
+  await assert.rejects(store.logout(), /legacy storage unavailable/)
+
+  assert.deepEqual(store.getSnapshot(), {
+    generation: 2,
+    initialized: true,
+  })
+  assert.deepEqual(revokedTokens, ['token-b'])
+  assert.equal(values.get('session_token'), 'token-b')
+  assert.equal(values.has('user_session'), true)
+  assert.equal(currentDeleteAttempts, 0)
+
+  const restartedStore = createAuthSessionStore({ sdk, storage })
+
+  await restartedStore.initialize()
+
+  assert.deepEqual(restartedStore.getSnapshot(), {
+    generation: 0,
+    initialized: true,
+    session: session('account-b'),
+    sessionToken: 'token-b',
+  })
+})
+
 test('keeps acceptance retryable after a storage write failure', async () => {
   const storageError = new Error('secure storage unavailable')
   let shouldFail = true

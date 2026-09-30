@@ -61,15 +61,8 @@ export const createSessionTokenStorage = (
 
   return {
     delete: async () => {
-      const results = await Promise.allSettled([
-        deleteItem(SESSION_TOKEN_KEY),
-        deleteItem(LEGACY_SESSION_KEY),
-      ])
-      const failure = results.find((result) => result.status === 'rejected')
-
-      if (failure) {
-        throw failure.reason
-      }
+      await deleteItem(LEGACY_SESSION_KEY)
+      await deleteItem(SESSION_TOKEN_KEY)
     },
     read: async () => {
       const sessionToken = await readItem(SESSION_TOKEN_KEY)
