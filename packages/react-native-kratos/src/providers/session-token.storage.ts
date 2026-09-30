@@ -92,7 +92,7 @@ export const createSessionTokenStorage = (
     },
     write: async (sessionToken) => {
       await writeItem(SESSION_TOKEN_KEY, sessionToken)
-      await deleteItem(LEGACY_SESSION_KEY)
+      await deleteItem(LEGACY_SESSION_KEY).catch(() => undefined)
     },
   }
 }
