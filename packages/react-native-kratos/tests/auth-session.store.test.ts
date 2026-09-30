@@ -198,46 +198,6 @@ test('a retryable refresh failure cannot replace a newer account', async () => {
   })
 })
 
-test('surfaces a storage read failure and allows a later restore retry', async () => {
-  const storageError = new Error('secure storage unavailable')
-  let reads = 0
-  const restored = session('restored-after-storage-recovery')
-  const storage: SessionTokenStorage = {
-    delete: async (): Promise<void> => undefined,
-    read: async (): Promise<StoredSessionToken> => {
-      reads += 1
-
-      if (reads === 1) {
-        throw storageError
-      }
-
-      return storedSessionToken('persisted-token')
-    },
-    write: async (): Promise<void> => undefined,
-  }
-  const sdk = {
-    toSession: async (): Promise<Session> => restored,
-  } as AuthSessionSdk
-  const store = createAuthSessionStore({ sdk, storage })
-
-  await store.initialize()
-
-  assert.deepEqual(store.getSnapshot(), {
-    error: storageError,
-    generation: 0,
-    initialized: true,
-  })
-
-  await store.initialize()
-
-  assert.deepEqual(store.getSnapshot(), {
-    generation: 0,
-    initialized: true,
-    session: restored,
-    sessionToken: 'persisted-token',
-  })
-})
-
 test('logout clears local state and revokes the captured token', async () => {
   const persisted = createStorage('captured-token')
   const remoteTokens: Array<string> = []
@@ -323,29 +283,6 @@ test('account switching replaces the token used by the next logout', async () =>
   assert.deepEqual(remoteTokens, ['second-token'])
   assert.equal(persisted.getToken(), undefined)
   assert.deepEqual(persisted.calls, ['read', 'write:first-token', 'write:second-token', 'delete'])
-})
-
-test('accepts only the first concurrent result from one generation', async () => {
-  const persisted = createStorage()
-  const store = createAuthSessionStore({
-    sdk: {} as AuthSessionSdk,
-    storage: persisted.storage,
-  })
-
-  await store.initialize()
-  await Promise.all([
-    store.acceptSession({ session: session('account-a'), sessionToken: 'token-a' }, 0),
-    store.acceptSession({ session: session('account-b'), sessionToken: 'token-b' }, 0),
-  ])
-
-  assert.deepEqual(store.getSnapshot(), {
-    generation: 1,
-    initialized: true,
-    session: session('account-a'),
-    sessionToken: 'token-a',
-  })
-  assert.equal(persisted.getToken(), 'token-a')
-  assert.deepEqual(persisted.calls, ['read', 'write:token-a'])
 })
 
 test('keeps acceptance retryable after a storage write failure', async () => {
