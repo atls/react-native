@@ -215,6 +215,46 @@ test('keeps the authenticated Provider state after a retryable refresh failure',
   assert.equal(screen.getByTestId('token').textContent, 'active-token')
 })
 
+test('logs out when the public callback receives an event-handler argument', async () => {
+  let token: string | undefined = 'active-token'
+  let auth: ContextAuth | undefined
+  const revokedTokens: Array<string> = []
+  const storage: SessionTokenStorage = {
+    delete: async (): Promise<void> => {
+      token = undefined
+    },
+    read: async (): Promise<StoredSessionToken> => storedSessionToken('active-token'),
+    write: async (nextToken): Promise<void> => {
+      token = nextToken
+    },
+  }
+  const sdk = {
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }): Promise<void> => {
+      revokedTokens.push(performNativeLogoutBody.session_token)
+    },
+    toSession: async (): Promise<Session> => session('active-account'),
+  } as unknown as FrontendApi
+
+  renderAuth({ sdk, storage }, (nextAuth): void => {
+    auth = nextAuth
+  })
+
+  await screen.findByText('true')
+
+  const onPress = auth?.logout as ((event: unknown) => Promise<void>) | undefined
+
+  assert.ok(onPress)
+  await act(async () => onPress({ nativeEvent: {} }))
+
+  assert.equal(screen.getByTestId('authenticated').textContent, 'false')
+  assert.equal(token, undefined)
+  assert.deepEqual(revokedTokens, ['active-token'])
+})
+
 test('a stale setter cannot clear the current account but current logout can', async () => {
   let auth: ContextAuth | undefined
   let token: string | undefined

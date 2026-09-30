@@ -47,7 +47,7 @@ export const AuthProvider = ({ children, storage }: AuthProviderProps): ReactEle
     () => ({
       error: snapshot.error,
       isAuthenticated: Boolean(snapshot.session),
-      logout: store.logout,
+      logout: async (): Promise<void> => store.logout(),
       refreshSession: store.refreshSession,
       retrySessionRestore: store.initialize,
       session: snapshot.session,
