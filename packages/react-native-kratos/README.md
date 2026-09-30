@@ -1,99 +1,169 @@
 # @atls/react-native-kratos
 
-React Native / Expo adapter for native self-service flows with self-hosted Ory Kratos.
+Username/password authentication and native session management for Expo 56,
+React Native 0.85 and React 19. The package connects the shared
+`@atls/react-kratos` flows to Expo SecureStore; your application owns its screens,
+navigation and account/profile initialization.
 
-## Usage
+## Install and configure
 
-Create a `FrontendApi` from `@ory/kratos-client-fetch` and provide it through
-`SdkProvider`:
+Install the adapter and Ory client, then install the native storage module with
+your application's Expo CLI:
+
+```sh
+yarn add @atls/react-native-kratos @ory/kratos-client-fetch@26.2.0
+npx expo install expo-secure-store
+```
+
+Use a Kratos Public API endpoint reachable from the device, with password login
+and registration enabled. Configure its identity schema for the traits your
+registration screen collects. Never embed Kratos admin credentials in the app.
+
+Create one SDK client and mount the providers above your authentication screens:
 
 ```tsx
-import { Configuration }        from '@ory/kratos-client-fetch'
-import { FrontendApi }          from '@ory/kratos-client-fetch'
+import { Configuration } from '@ory/kratos-client-fetch'
+import { FrontendApi }   from '@ory/kratos-client-fetch'
 
-import { AuthProvider }         from '@atls/react-native-kratos'
-import { ReactNativeLoginFlow } from '@atls/react-native-kratos'
-import { SdkProvider }          from '@atls/react-native-kratos'
+import { AuthProvider }  from '@atls/react-native-kratos'
+import { SdkProvider }   from '@atls/react-native-kratos'
 
 const frontend = new FrontendApi(new Configuration({ basePath: kratosPublicUrl }))
 
 export const App = () => (
   <SdkProvider value={frontend}>
     <AuthProvider>
-      <ReactNativeLoginFlow route={{}}>
-        <LoginScreen />
-      </ReactNativeLoginFlow>
+      <AuthenticationScreen />
     </AuthProvider>
   </SdkProvider>
 )
 ```
 
-`AuthProvider` stores the raw `session_token` under the `user_session` key in
-Expo SecureStore on native. It keeps the released JSON shape in AsyncStorage on
-web for import compatibility. A native value written by an earlier release is
-migrated from JSON to the raw token only after `toSession` has validated it.
+Keep the SDK instance stable across renders. `AuthProvider` waits for the initial
+storage read before rendering its children. A credential awaiting server
+validation is not an authenticated session: use `isAuthenticated` to choose the
+signed-in screen, not the presence of `sessionToken`.
 
-The provider never treats a stored token as proof of authentication. On
-startup, it restores the server session through `toSession`; only the returned
-session makes `isAuthenticated` true. A `401` response clears the exact token
-whose session Kratos confirmed inactive. Network failures, AAL responses, and
-`5xx` responses retain the token and any previously confirmed session, expose
-the error through `useAuth()`, and can be retried with `syncSession()`.
+## Password login and registration
 
-`setSession(undefined)` only clears local auth state and storage. `logout()`
-immediately closes the current generation of local auth state, removes the
-token, and calls `performNativeLogout` with the token captured before cleanup.
-It attempts both operations and reports either or both failures. If remote
-revocation fails after local cleanup, another `logout()` call on the same
-mounted provider retries that captured token. Replacing an account does not
-revoke another session automatically. `syncSession()` waits for an in-progress
-session acceptance and revalidates the credential that was actually persisted
-before it resolves. Late login, registration, restore, synchronization, and
-browser-exchange results cannot reapply a session from an older generation.
+Wrap a login screen with `ReactNativeLoginFlow`. Its required `route` accepts
+optional `params.aal` and `params.refresh`; use `route={{}}` for ordinary login.
+Shared flow components provide values, submission state and Kratos validation
+messages while you supply native UI:
 
-Login and registration pass redirects from the shared Ory `handleFlowError`
-through Expo WebBrowser. Both wrappers accept an optional `returnTo`; otherwise
-they create the Expo callback URI. After the browser returns, the adapter
-exchanges the `session_token_exchange_code` / `code` pair through
-`exchangeSessionToken`; the package does not reproduce Ory's error switch
-locally.
+```tsx
+import { Button }               from 'react-native'
+import { TextInput }            from 'react-native'
+import { View }                 from 'react-native'
 
-## Supported versions
+import { FlowInputNode }        from '@atls/react-native-kratos'
+import { FlowSubmit }           from '@atls/react-native-kratos'
+import { ReactNativeLoginFlow } from '@atls/react-native-kratos'
 
-The supported dependency stacks are deliberately narrow:
+export const LoginScreen = () => (
+  <ReactNativeLoginFlow route={{}} onError={reportAuthError}>
+    <View>
+      <FlowInputNode name='identifier'>
+        {(node, value, onChange) => (
+          <TextInput autoCapitalize='none' value={value} onChangeText={onChange} />
+        )}
+      </FlowInputNode>
+      <FlowInputNode name='password'>
+        {(node, value, onChange) => (
+          <TextInput secureTextEntry value={value} onChangeText={onChange} />
+        )}
+      </FlowInputNode>
+      <FlowSubmit>
+        {({ onSubmit, submitting }) => (
+          <Button
+            title='Sign in'
+            disabled={submitting}
+            onPress={() => {
+              onSubmit({ method: 'password' }).catch(reportAuthError)
+            }}
+          />
+        )}
+      </FlowSubmit>
+    </View>
+  </ReactNativeLoginFlow>
+)
+```
 
-| Expo | React Native | React | React Native Web |
-| ---- | ------------ | ----- | ---------------- |
-| 50   | 0.73         | 18    | 0.19             |
-| 56   | 0.85         | 19    | 0.21             |
+Use `ReactNativeRegistrationFlow` for registration. Provide the fields required
+by your identity schema and submit nested `traits`, rather than flat field names
+such as `traits.username`. For a username schema, a child of the registration
+flow can read `useValues()` and submit:
 
-The package re-exports the shared `@atls/react-kratos@0.1.0` API. The web
-storage path preserves the released fallback and import surface, but a web
-bundle alone is not production authentication acceptance.
+```tsx
+onSubmit({
+  method: 'password',
+  traits: { username: values.getValue('traits.username') },
+}).catch(reportAuthError)
+```
 
-## Native acceptance setup
+The wrappers pass a successful native session to the auth provider and await
+credential persistence. `useFlow()`, `FlowMessages` and `FlowNodeMessages` remain
+available from the shared package for displaying flow and field validation
+messages. No browser callback or `returnTo` is required for these password flows.
 
-Use self-hosted Kratos `v26.2.0` and `@ory/kratos-client-fetch@26.2.0` for
-device acceptance. The reference setup requires:
+## Session API
 
-- a public Kratos endpoint reachable from both iOS and Android test devices;
-- enabled password login and registration, plus an enabled OIDC provider for
-  the browser-return case;
-- the exact application callback, such as `my-app://Callback`, in
-  `selfservice.allowed_return_urls`;
-- the same callback in the Expo application scheme/link configuration and in
-  each native flow wrapper's `returnTo` prop; and
-- the OIDC provider callback configured for Kratos itself, separately from the
-  application callback.
+Read the public state and actions with `useAuth()`. `AuthContext` is also exported
+for consumers that use React's context API directly.
 
-Keep provider secrets in the server's secret store. With that setup, verify
-login, registration, browser cancellation and return, restore after restart,
-`syncSession()`, `logout()`, inactive-session cleanup, temporary network/server
-failures, and account switching on both platforms. These checks exercise token
-authentication; they do not rely on a browser session cookie.
+| Member                                  | Application behavior                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------- |
+| `isAuthenticated`                       | True only when the current confirmed session is active                             |
+| `session`                               | Current server session, when available                                             |
+| `sessionToken`                          | Current known opaque credential; its presence alone is not proof of authentication |
+| `error`                                 | Storage or session validation failure reported by the provider                     |
+| `setSession({ session, sessionToken })` | Persist and accept a native flow result; the wrappers normally call this for you   |
+| `setSession(undefined)`                 | Clear local authentication and storage without revoking a server session           |
+| `syncSession(): Promise<void>`          | Wait for pending acceptance and revalidate the current credential                  |
+| `logout(): Promise<void>`               | Clear local authentication, remove its stored credential and attempt server logout |
 
-## Acceptance boundary
+Await actions and handle rejection. For example, a logout button can report an
+incomplete logout and allow the user to retry:
 
-Automated build, unit, type, lint, pack, and Metro bundle checks do not replace
-login, registration, restart restore, logout, and account-switching checks
-against a real self-hosted Kratos deployment on a device or simulator.
+```tsx
+const { logout } = useAuth()
+
+const signOut = async () => {
+  try {
+    await logout()
+  } catch (error) {
+    reportAuthError(error)
+  }
+}
+```
+
+Explicit logout also covers a credential already read during pending restoration.
+If remote logout fails after local clearing, another `logout()` call on the same
+mounted provider retries it. Both local and remote failures are reported, using
+an `AggregateError` if both fail. Retry before replacing or unmounting that
+provider; remote retry state is not persisted across process restarts.
+
+## Storage and recovery
+
+SecureStore holds the raw opaque token under `user_session`. Older native JSON
+values are read at the same key and migrated only after successful server
+validation; stored session data is never trusted as authentication.
+
+A confirmed inactive-session response clears the affected credential. Temporary
+network or server failures retain the token and any previously confirmed session,
+expose the error, and allow `syncSession()` to retry. A failed replacement write
+does not replace the last committed credential. Late asynchronous results cannot
+reauthenticate after logout or overwrite a newer accepted session. Switching
+accounts does not automatically revoke another server session.
+
+## Supported runtime
+
+The native integration targets Expo 56, React Native 0.85 and React 19 with
+`expo-secure-store` 56 and `@ory/kratos-client-fetch` 26.2. The client version does
+not select or upgrade your Kratos server; verify your server's password and
+session behavior separately.
+
+Expo 50, web storage, browser/OIDC authentication and redirect-code exchange are
+not supported by this native adapter. Shared `@atls/react-kratos@0.1.0` exports,
+including `SdkProvider` and `useSdk`, remain available; their presence does not
+add native support for browser-only flows.

@@ -2,12 +2,6 @@ import type { Session } from '@ory/kratos-client-fetch'
 
 const SESSION_KEY = 'user_session'
 
-interface AsyncStorageAdapter {
-  getItem: (key: string) => Promise<string | null>
-  removeItem: (key: string) => Promise<void>
-  setItem: (key: string, value: string) => Promise<void>
-}
-
 interface SecureStoreAdapter {
   deleteItemAsync: (key: string) => Promise<void>
   getItemAsync: (key: string) => Promise<string | null>
@@ -25,10 +19,7 @@ export interface StoredSessionToken {
   sessionToken: string
 }
 
-const parseStoredSessionToken = (
-  value: string | null,
-  requiresLegacyMigration: boolean
-): StoredSessionToken | undefined => {
+const parseStoredSessionToken = (value: string | null): StoredSessionToken | undefined => {
   if (!value) {
     return undefined
   }
@@ -39,7 +30,7 @@ const parseStoredSessionToken = (
     if (typeof storedSession === 'object' && storedSession !== null) {
       if ('sessionToken' in storedSession && typeof storedSession.sessionToken === 'string') {
         return {
-          requiresMigration: requiresLegacyMigration,
+          requiresMigration: true,
           sessionToken: storedSession.sessionToken,
         }
       }
@@ -60,23 +51,9 @@ const parseStoredSessionToken = (
 }
 
 export const createSessionTokenStorage = (
-  platform: string,
-  secureStore: SecureStoreAdapter,
-  asyncStorage: AsyncStorageAdapter
-): SessionTokenStorage => {
-  const web = platform === 'web'
-  const deleteItem = async (): Promise<void> =>
-    web ? asyncStorage.removeItem(SESSION_KEY) : secureStore.deleteItemAsync(SESSION_KEY)
-  const readItem = async (): Promise<string | null> =>
-    web ? asyncStorage.getItem(SESSION_KEY) : secureStore.getItemAsync(SESSION_KEY)
-  const writeItem = async (value: string): Promise<void> =>
-    web ? asyncStorage.setItem(SESSION_KEY, value) : secureStore.setItemAsync(SESSION_KEY, value)
-
-  return {
-    delete: deleteItem,
-    read: async () => parseStoredSessionToken(await readItem(), !web),
-    write: async (sessionToken, session) => {
-      await writeItem(web ? JSON.stringify({ session, sessionToken }) : sessionToken)
-    },
-  }
-}
+  secureStore: SecureStoreAdapter
+): SessionTokenStorage => ({
+  delete: async () => secureStore.deleteItemAsync(SESSION_KEY),
+  read: async () => parseStoredSessionToken(await secureStore.getItemAsync(SESSION_KEY)),
+  write: async (sessionToken) => secureStore.setItemAsync(SESSION_KEY, sessionToken),
+})
