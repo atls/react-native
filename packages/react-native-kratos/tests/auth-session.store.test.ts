@@ -11,7 +11,7 @@ import { ResponseError }            from '@ory/kratos-client-fetch'
 
 import { createAuthSessionStore }   from '../src/providers/auth-session.store.js'
 
-const session = (id: string): Session => ({ id, active: true }) as Session
+const session = (id: string): Session => ({ id, active: true })
 
 const storedSession = (sessionToken: string, requiresMigration = false): StoredSessionToken => ({
   requiresMigration,
@@ -441,7 +441,7 @@ test('explicit logout retries a failed remote revocation within the store lifeti
       }
     },
     toSession: async (): Promise<Session> => session('active'),
-  } as AuthSessionSdk
+  }
   const store = createAuthSessionStore({ sdk, storage: persisted.storage })
 
   await store.initialize()

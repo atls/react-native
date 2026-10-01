@@ -36,7 +36,7 @@ const deferred = <T,>(): Deferred<T> => {
   return { promise, resolve }
 }
 
-const session = (id: string): Session => ({ id, active: true }) as Session
+const session = (id: string): Session => ({ id, active: true })
 
 const storedSession = (sessionToken: string): StoredSessionToken => ({
   requiresMigration: false,
