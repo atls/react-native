@@ -2,7 +2,13 @@
   "name": "@atls/react-native-kratos",
   "version": "0.0.1",
   "license": "BSD-3-Clause",
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
   "main": "src/index.ts",
+  "typings": "dist/index.d.ts",
   "files": [
     "dist"
   ],
@@ -12,27 +18,40 @@
     "postpack": "rm -rf dist"
   },
   "dependencies": {
-    "@atls/react-kratos": "0.0.2"
+    "@atls/react-kratos": "0.1.0"
   },
   "devDependencies": {
-    "@react-native-async-storage/async-storage": "^1.21.0",
-    "@types/react": "^18.2.45",
-    "@types/react-dom": "^18.2.18",
-    "expo-auth-session": "^5.4.0",
-    "expo-secure-store": "^12.8.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-native": "^0.73.1"
+    "@ory/kratos-client-fetch": "26.2.0",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.1.0",
+    "@types/node": "^22.10.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "expo": "56.0.9",
+    "expo-secure-store": "56.0.4",
+    "global-jsdom": "25.0.0",
+    "jsdom": "25.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.85.3"
   },
   "peerDependencies": {
-    "@react-native-async-storage/async-storage": "^1",
-    "expo-auth-session": "^5",
-    "expo-secure-store": "^12",
-    "react": "^18.0.0",
-    "react-native": "^0.73.0"
+    "@ory/kratos-client-fetch": "^26.2.0",
+    "expo": "^56.0.0",
+    "expo-secure-store": "^56.0.4",
+    "react": "^19.2.3",
+    "react-native": "^0.85.3"
   },
   "publishConfig": {
     "access": "public",
+    "exports": {
+      "./package.json": "./package.json",
+      ".": {
+        "import": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
     "main": "dist/index.js",
     "typings": "dist/index.d.ts"
   },
