@@ -26,6 +26,6 @@
     "strictPropertyInitialization": false,
     "outDir": "./dist"
   },
-  "include": ["project.types.d.ts", "packages/**/*"],
+  "include": ["packages/**/*"],
   "exclude": [".idea"]
 }
