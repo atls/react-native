@@ -16,7 +16,7 @@
     "*.{test,spec}.{ts,tsx}": "yarn test unit"
   },
   "devDependencies": {
-    "@atls/raijin": "1.0.3",
+    "@atls/raijin": "1.1.0",
     "@types/node": "22.10.2",
     "eslint": "9.17.0",
     "typescript": "5.5.4"

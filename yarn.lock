@@ -69,9 +69,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@atls/raijin@npm:1.0.3":
-  version: 1.0.3
-  resolution: "@atls/raijin@npm:1.0.3"
+"@atls/raijin@npm:1.1.0":
+  version: 1.1.0
+  resolution: "@atls/raijin@npm:1.1.0"
   dependencies:
     "@angular-devkit/core": "npm:22.1.8"
     "@angular-devkit/schematics": "npm:22.1.8"
@@ -104,7 +104,7 @@ __metadata:
   bin:
     raijin: bin/raijin.js
     raijin-hooks: bin/raijin-hooks.js
-  checksum: 10/df4893d5bb14d4d93cdf00c3dfbc4eb8ad9386b80aaba22bd8508e412bb66992fbe8c18eb042c55492f548dfe0c52896941aeb722ac031a1a8dfbee2f4431f7a
+  checksum: 10/8f9359d816ed4effe167bc1a29aaeba4385319836a56776b4c56f6a1c99c9b27152766fba9383f8e6c2d4b5c67f1ca816ce857064bf86323a17fb3fee0aa6a4e
   languageName: node
   linkType: hard
 
@@ -8639,7 +8639,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "react-native@workspace:."
   dependencies:
-    "@atls/raijin": "npm:1.0.3"
+    "@atls/raijin": "npm:1.1.0"
     "@types/node": "npm:22.10.2"
     eslint: "npm:9.17.0"
     typescript: "npm:5.5.4"
