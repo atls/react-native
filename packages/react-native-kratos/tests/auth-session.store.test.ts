@@ -456,6 +456,106 @@ test('explicit logout retries a failed remote revocation within the store lifeti
   assert.deepEqual(revokedTokens, ['active-token', 'active-token'])
 })
 
+test('explicit logout revokes a session while its credential write is pending', async () => {
+  const writeStarted = deferred<undefined>()
+  const write = deferred<undefined>()
+  let currentCredential: StoredSessionToken | undefined
+  const revokedTokens: Array<string> = []
+  const storage: SessionTokenStorage = {
+    delete: async (): Promise<void> => {
+      currentCredential = undefined
+    },
+    read: async (): Promise<StoredSessionToken | undefined> => currentCredential,
+    write: async (sessionToken): Promise<void> => {
+      writeStarted.resolve(undefined)
+      await write.promise
+      currentCredential = storedSession(sessionToken)
+    },
+  }
+  const sdk = {
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }): Promise<void> => {
+      revokedTokens.push(performNativeLogoutBody.session_token)
+    },
+  } as AuthSessionSdk
+  const store = createAuthSessionStore({ sdk, storage })
+
+  await store.initialize()
+  const acceptance = store.acceptSession(
+    { session: session('new'), sessionToken: 'new-token' },
+    store.getSnapshot().generation
+  )
+
+  await writeStarted.promise
+  const logout = store.logout()
+  write.resolve(undefined)
+  await Promise.all([acceptance, logout])
+
+  assert.deepEqual(revokedTokens, ['new-token'])
+  assert.equal(currentCredential, undefined)
+  assert.equal(store.getSnapshot().sessionToken, undefined)
+  assert.equal(store.getSnapshot().session, undefined)
+})
+
+test('explicit logout retries a pending session revocation after local clear', async () => {
+  const writeStarted = deferred<undefined>()
+  const write = deferred<undefined>()
+  const revokeError = new Error('Kratos unavailable')
+  let currentCredential: StoredSessionToken | undefined = storedSession('old-token')
+  let failPendingRevocation = true
+  const revokedTokens: Array<string> = []
+  const storage: SessionTokenStorage = {
+    delete: async (): Promise<void> => {
+      currentCredential = undefined
+    },
+    read: async (): Promise<StoredSessionToken | undefined> => currentCredential,
+    write: async (sessionToken): Promise<void> => {
+      writeStarted.resolve(undefined)
+      await write.promise
+      currentCredential = storedSession(sessionToken)
+    },
+  }
+  const sdk = {
+    performNativeLogout: async ({
+      performNativeLogoutBody,
+    }: {
+      performNativeLogoutBody: { session_token: string }
+    }): Promise<void> => {
+      const token = performNativeLogoutBody.session_token
+
+      revokedTokens.push(token)
+
+      if (token === 'new-token' && failPendingRevocation) {
+        failPendingRevocation = false
+        throw revokeError
+      }
+    },
+    toSession: async (): Promise<Session> => session('old'),
+  }
+  const store = createAuthSessionStore({ sdk, storage })
+
+  await store.initialize()
+  const acceptance = store.acceptSession(
+    { session: session('new'), sessionToken: 'new-token' },
+    store.getSnapshot().generation
+  )
+
+  await writeStarted.promise
+  const logout = store.logout()
+  write.resolve(undefined)
+  await acceptance
+  await assert.rejects(logout, (error) => error === revokeError)
+
+  assert.deepEqual([...revokedTokens].sort(), ['new-token', 'old-token'])
+  assert.equal(currentCredential, undefined)
+  await store.logout()
+  assert.deepEqual([...revokedTokens].sort(), ['new-token', 'new-token', 'old-token'])
+  assert.equal(store.getSnapshot().sessionToken, undefined)
+})
+
 test('late login and restore results cannot replace newer local state', async () => {
   const restoration = deferred<Session>()
   const validationStarted = deferred<undefined>()

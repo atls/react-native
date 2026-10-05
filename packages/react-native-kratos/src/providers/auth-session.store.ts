@@ -49,8 +49,9 @@ export const createAuthSessionStore = ({
   storage,
 }: AuthSessionStoreOptions): AuthSessionStore => {
   const listeners = new Set<() => void>()
-  let failedLogoutToken: string | undefined
+  const failedLogoutTokens = new Set<string>()
   let pendingAcceptance: Promise<void> | undefined
+  const pendingAcceptanceTokens = new Map<Promise<void>, string>()
   let persistedCredential: PersistedCredential | undefined
   let snapshot: AuthSessionSnapshot = {
     generation: 0,
@@ -344,10 +345,13 @@ export const createAuthSessionStore = ({
       )
 
       pendingAcceptance = acceptance
+      pendingAcceptanceTokens.set(acceptance, sessionToken)
 
       try {
         await acceptance
       } finally {
+        pendingAcceptanceTokens.delete(acceptance)
+
         if (pendingAcceptance === acceptance) {
           pendingAcceptance = undefined
         }
@@ -386,8 +390,13 @@ export const createAuthSessionStore = ({
       await restoreStoredSession(false)
     },
     logout: async (): Promise<void> => {
-      const sessionToken =
-        snapshot.sessionToken ?? persistedCredential?.sessionToken ?? failedLogoutToken
+      const sessionTokens = new Set<string>()
+
+      if (snapshot.sessionToken) sessionTokens.add(snapshot.sessionToken)
+      if (persistedCredential?.sessionToken) sessionTokens.add(persistedCredential.sessionToken)
+
+      for (const token of pendingAcceptanceTokens.values()) sessionTokens.add(token)
+      for (const token of failedLogoutTokens) sessionTokens.add(token)
 
       emit({
         generation: snapshot.generation + 1,
@@ -398,23 +407,21 @@ export const createAuthSessionStore = ({
         await storage.delete()
         persistedCredential = undefined
       })
-      const remoteOperation = sessionToken
-        ? sdk.performNativeLogout({
+      const remoteOperations = [...sessionTokens].map(async (sessionToken) => {
+        try {
+          await sdk.performNativeLogout({
             performNativeLogoutBody: {
               session_token: sessionToken,
             },
           })
-        : Promise.resolve()
-
-      const results = await Promise.allSettled([localOperation, remoteOperation])
-
-      if (sessionToken) {
-        if (results[1].status === 'rejected') {
-          failedLogoutToken = sessionToken
-        } else if (failedLogoutToken === sessionToken) {
-          failedLogoutToken = undefined
+          failedLogoutTokens.delete(sessionToken)
+        } catch (error) {
+          failedLogoutTokens.add(sessionToken)
+          throw error
         }
-      }
+      })
+
+      const results = await Promise.allSettled([localOperation, ...remoteOperations])
 
       const errors = results.flatMap((result) =>
         result.status === 'rejected' ? [result.reason as unknown] : [])
