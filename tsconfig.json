@@ -26,6 +26,5 @@
     "strictPropertyInitialization": false,
     "outDir": "./dist"
   },
-  "include": ["packages/**/*"],
-  "exclude": [".idea"]
+  "include": ["packages/**/*"]
 }

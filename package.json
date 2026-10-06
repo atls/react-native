@@ -22,9 +22,6 @@
     "typescript": "5.5.4"
   },
   "packageManager": "yarn@4.18.0",
-  "linterIgnorePatterns": [
-    ".idea/fileTemplates/**"
-  ],
   "tools": {
     "schematic": {
       "collection": "@atls/schematics",
